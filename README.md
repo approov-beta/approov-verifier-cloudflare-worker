@@ -475,7 +475,7 @@ loads all Approov JWKS and ARC configuration from this single encrypted value.
 
 ### Environment variables (`[vars]`)
 
-Defined in [`wrangler.toml`](wrangler.toml). **Restart the worker after changing any value.**
+Defined in [`wrangler.toml`](wrangler.toml). **Changes take effect on the next `npm run deploy`, or when `npm start` restarts locally.**
 
 <details>
 <summary><strong>Upstream</strong></summary>
@@ -825,7 +825,7 @@ reproduction, impact analysis, and guidance for reviewing other backend implemen
 
 Token binding ties a token to a value carried in a request header. It is **off** by default
 (`APPROOV_TOKEN_BINDING_ENABLED = "false"`). To enable it, set `APPROOV_TOKEN_BINDING_ENABLED = "true"` and
-restart the worker.
+deploy again.
 
 A token is **bound** when the SHA-256/base64 hash of the binding header value (default
 `Authorization`) matches the binding claim in the token payload (default `pay`). Change the
@@ -837,10 +837,9 @@ Generate a token that embeds a data hash:
 approov token -genExample $(WORKER_NAME).$(WORKER_DOMAIN) -setDataHashInToken 'Bearer 0123456789abcdef'
 ```
 
-Send the **same** value in the binding header:
-
-Use the registered gateway hostname from the local quickstart. `--resolve` sends the request
-to localhost while preserving the hostname that selects its Approov policy.
+Send the **same** value in the binding header. As in the local quickstart, `--resolve` sends
+the request to localhost while preserving the registered gateway hostname that selects its
+Approov policy:
 
 ```shell
 curl --resolve "$(WORKER_NAME).$(WORKER_DOMAIN):8787:127.0.0.1" \
@@ -868,7 +867,7 @@ curl --resolve "$(WORKER_NAME).$(WORKER_DOMAIN):8787:127.0.0.1" \
 { "tokenResult": "PASS", "bindingResult": "INVALID", /* ... */ }
 ```
 
-See [Approov Token Binding](https://approov.io/docs/latest/approov-usage-documentation/#token-binding)
+See [Approov Token Binding](https://ext.approov.io/docs/latest/approov-usage-documentation/#token-binding)
 for full details.
 
 ### Message signing checks
@@ -981,10 +980,9 @@ approov secret -messageSigningKey get-base64url
 approov secret -messageSigningKey change
 ```
 
-Then configure the secret and, optionally, a fixed key id to match the token's `mskid`:
-
-Store the account message-signing secret in `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`.
-Do not replace it with a device key. The Worker derives that key for each authenticated request.
+Store that account secret in `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`. Do not replace it with a
+device key: the Worker derives that key for each authenticated request. Optionally also set a
+fixed key id that the token's `mskid` must match:
 
 ```shell
 npx wrangler secret put APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET
@@ -1168,39 +1166,7 @@ The audit gate includes all severities and development dependencies and has no e
 
 The deployed end-to-end matrix is separate and manual; see [`test/e2e/README.md`](test/e2e/README.md).
 
-<details>
-<summary><strong>Token outcomes (default <code>token</code> strategy)</strong></summary>
-
-| Scenario | `tokenResult` | `bindingResult` |
-|---|---|---|
-| No `Approov-Token` header | `MISSING_HEADER` | `DISABLED` |
-| Empty `Approov-Token` header | `EMPTY_HEADER` | `DISABLED` |
-| Valid pass token | `PASS` | `DISABLED` |
-| Valid fail token | `FAIL` | `DISABLED` |
-| Unknown signer | `INVALID_SIG` | `DISABLED` |
-| Audience mismatch | `INVALID_AUD` | `DISABLED` |
-| Unsupported JWT algorithm | `INVALID_ALG` | `DISABLED` |
-| Malformed JWT, or a signed token without a numeric `exp` claim | `MALFORMED` | `DISABLED` |
-| Unparsable JWT | `UNPARSABLE` | `DISABLED` |
-| Expired token | `EXPIRED` | `DISABLED` |
-
-</details>
-
-<details>
-<summary><strong>Binding outcomes (<code>token-binding</code> strategy)</strong></summary>
-
-| Scenario | `tokenResult` | `bindingResult` |
-|---|---|---|
-| Missing token header | `MISSING_HEADER` | `NOT_CHECKED` |
-| PASS token + missing binding header | `PASS` | `MISSING_HEADER` |
-| PASS token + empty binding header | `PASS` | `EMPTY_HEADER` |
-| PASS token + missing binding claim | `PASS` | `MISSING_CLAIM` |
-| PASS token + hash mismatch | `PASS` | `INVALID` |
-| PASS token + hash match | `PASS` | `VALID` |
-| Authentic FAIL token | `FAIL` | Binding checked using trusted claims |
-| INVALID_SIG token | `INVALID_SIG` | `NOT_CHECKED` |
-
-</details>
+The suites cover these message-signing scenarios:
 
 <details>
 <summary><strong>Message-signing coverage</strong></summary>
@@ -1218,10 +1184,45 @@ The deployed end-to-end matrix is separate and manual; see [`test/e2e/README.md`
 
 ## Outcome Reference
 
-The canonical outcome enums live in [`src/constants.js`](src/constants.js).
+The canonical outcome enums live in [`src/constants.js`](src/constants.js). The first two tables
+show which outcome each common scenario produces; the lists after them give every possible value.
 
 <details>
-<summary><strong>Token outcomes</strong></summary>
+<summary><strong>Token scenarios (token binding disabled)</strong></summary>
+
+| Scenario | `tokenResult` | `bindingResult` |
+|---|---|---|
+| No `Approov-Token` header | `MISSING_HEADER` | `DISABLED` |
+| Empty `Approov-Token` header | `EMPTY_HEADER` | `DISABLED` |
+| Valid pass token | `PASS` | `DISABLED` |
+| Valid fail token | `FAIL` | `DISABLED` |
+| Unknown signer | `INVALID_SIG` | `DISABLED` |
+| Audience mismatch | `INVALID_AUD` | `DISABLED` |
+| Unsupported JWT algorithm | `INVALID_ALG` | `DISABLED` |
+| Malformed JWT, or a signed token without a numeric `exp` claim | `MALFORMED` | `DISABLED` |
+| Unparsable JWT | `UNPARSABLE` | `DISABLED` |
+| Expired token | `EXPIRED` | `DISABLED` |
+
+</details>
+
+<details>
+<summary><strong>Binding scenarios (token binding enabled)</strong></summary>
+
+| Scenario | `tokenResult` | `bindingResult` |
+|---|---|---|
+| Missing token header | `MISSING_HEADER` | `NOT_CHECKED` |
+| PASS token + missing binding header | `PASS` | `MISSING_HEADER` |
+| PASS token + empty binding header | `PASS` | `EMPTY_HEADER` |
+| PASS token + missing binding claim | `PASS` | `MISSING_CLAIM` |
+| PASS token + hash mismatch | `PASS` | `INVALID` |
+| PASS token + hash match | `PASS` | `VALID` |
+| Authentic FAIL token | `FAIL` | Binding checked using trusted claims |
+| INVALID_SIG token | `INVALID_SIG` | `NOT_CHECKED` |
+
+</details>
+
+<details>
+<summary><strong>All token outcomes</strong></summary>
 
 `PASS`, `FAIL`, `EXPIRED`, `INVALID_AUD`, `INVALID_ALG`, `INVALID_SIG`, `MALFORMED`,
 `UNPARSABLE`, `MISSING_HEADER`, `EMPTY_HEADER`, `NOT_CHECKED`, `ERROR`.
@@ -1229,7 +1230,7 @@ The canonical outcome enums live in [`src/constants.js`](src/constants.js).
 </details>
 
 <details>
-<summary><strong>Binding outcomes</strong></summary>
+<summary><strong>All binding outcomes</strong></summary>
 
 `VALID`, `INVALID`, `DISABLED`, `MISSING_HEADER`, `EMPTY_HEADER`, `MISSING_CLAIM`,
 `NOT_CHECKED`, `ERROR`.
@@ -1237,7 +1238,7 @@ The canonical outcome enums live in [`src/constants.js`](src/constants.js).
 </details>
 
 <details>
-<summary><strong>Message-signing outcomes</strong></summary>
+<summary><strong>All message-signing outcomes</strong></summary>
 
 `VALID`, `INVALID`, `NOT_REQUIRED`, `NOT_CHECKED`, `MISSING_HEADERS`, `MALFORMED_HEADERS`,
 `MISSING_SIGNATURE_ENTRY`, `INVALID_CONTENT_DIGEST`, `MISSING_CONTENT_DIGEST`,
@@ -1256,16 +1257,16 @@ The claim must contain canonical, padded standard base64 for exactly 16 bytes.
 **Cloudflare — development**
 
 - [Getting started](https://developers.cloudflare.com/workers/)
-- [Debugging Workers](https://developers.cloudflare.com/workers/learning/debugging-workers/)
+- [Observability and debugging](https://developers.cloudflare.com/workers/observability/)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
 
 **Cloudflare — logs**
 
-- [Tail logs with the Wrangler CLI](https://developers.cloudflare.com/workers/tooling/wrangler/commands/#tail)
-- [Cloudflare Logs (Enterprise)](https://www.cloudflare.com/products/cloudflare-logs/)
+- [Tail logs with the Wrangler CLI](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/)
+- [Workers Logpush](https://developers.cloudflare.com/workers/observability/logs/logpush/)
 
 **Approov**
 
 - [Approov installation](https://ext.approov.io/docs/latest/approov-installation/)
 - [Managing key sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets)
-- [Token binding](https://approov.io/docs/latest/approov-usage-documentation/#token-binding)
+- [Token binding](https://ext.approov.io/docs/latest/approov-usage-documentation/#token-binding)
