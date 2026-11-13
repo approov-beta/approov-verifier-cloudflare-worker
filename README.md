@@ -7,10 +7,10 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/approov-beta/approov-verifier-cloudflare-worker)
 
-> [!IMPORTANT]
-> Copyright © 2026 by Approov Limited — **Classified Confidential**.
-> Attestation Response Code (ARC) decoding is proprietary logic. Treat
-> [`plugins/arc/`](plugins/arc/) (the decoder and ARC flag mappings) as confidential.
+> [!NOTE]
+> Copyright © 2026 Approov Limited. Released under the [MIT License](LICENSE).
+> Customer-specific confidential logic is not part of this repository: Approov delivers it
+> separately as [drop-in plugins](#plugins).
 
 A reverse-proxy [Cloudflare Worker](https://developers.cloudflare.com/workers/) that
 verifies [Approov](https://approov.io) attestation tokens at the edge, annotates each
@@ -985,8 +985,9 @@ These fields are prohibited in annotation mode.
 
 ## Plugins
 
-Optional and confidential capabilities are delivered as **drop-in plugins** under
-`plugins/<name>/` rather than baked into the core worker. A plugin is discovered
+Optional capabilities are **drop-in plugins** under `plugins/<name>/` rather than part of the
+core worker. The ARC plugin ships in this repository; Approov delivers customer-specific
+confidential plugins separately, and you add one by copying its folder into `plugins/`. A plugin is discovered
 automatically at build time, declares and parses its own configuration, and produces informational results.
 These results enter annotations or structured logs according to the Worker mode and logging settings.
 Plugins do not affect enforcement. When removing a plugin, also remove its configuration fields.
@@ -1092,7 +1093,7 @@ The worker is split into focused modules so each concern is easy to review and m
 | [`src/approov/message-signing.js`](src/approov/message-signing.js) | Installation/account message-signature verification. |
 | [`src/approov/evaluate.js`](src/approov/evaluate.js) | Composed per-request evaluation flow. |
 | [`src/plugin-host.js`](src/plugin-host.js) | Drop-in plugin registry loader and lifecycle runner. |
-| [`plugins/arc/`](plugins/arc/) | ARC decoding plugin (proprietary). |
+| [`plugins/arc/`](plugins/arc/) | ARC decoding plugin. |
 
 **HTTP proxy**
 

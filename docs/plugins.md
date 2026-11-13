@@ -1,9 +1,11 @@
 # Plugin architecture
 
 This worker supports **drop-in plugins**: self-contained feature modules under
-`plugins/<name>/` that are wired in automatically at build time. This lets
-confidential or optional capabilities live outside the public repo and be
-delivered only to customers who need them — without editing the core worker.
+`plugins/<name>/` that are wired in automatically at build time. Optional
+capabilities stay out of the core, and Approov can deliver customer-specific
+confidential plugins separately: copying such a folder into `plugins/` adds it
+without editing the core worker. The plugins in this repository are covered by
+its MIT licence.
 
 This document describes the **mechanism**. Each plugin documents itself in its
 own folder — see the [shipped plugins](#shipped-plugins) below.

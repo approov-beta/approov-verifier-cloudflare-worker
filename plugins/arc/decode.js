@@ -31,7 +31,7 @@ const arcHmacPrefix = (prefix, secret) => {
 /**
  * Decode an Approov ARC string into a list of normalized properties.
  *
- * The decoder reproduces Approov's proprietary ARC mapping:
+ * The decoder reproduces Approov's ARC mapping:
  * - validates ARC size and alphabet
  * - uses HMAC-derived keystream to decode each symbol
  * - resolves each decoded code to a semantic property label when known
