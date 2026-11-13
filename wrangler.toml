@@ -1,0 +1,129 @@
+name = "approov-gateway"
+main = "src/index.js"
+compatibility_date = "2025-12-15"
+compatibility_flags = [ "nodejs_compat" ]
+
+[secrets]
+# Warn during local development and refuse deployment without the core binding.
+required = [ "APPROOV_BACKEND_CONFIG" ]
+
+[vars]
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. UPSTREAM (required)
+# ─────────────────────────────────────────────────────────────────────────────
+# Target domain for upstream (required unless API_PASSTHROUGH is true, even when
+# echo mode is active).
+API_DOMAIN = "postman-echo.com"
+# Upstream port (default 443). Ignored when API_PASSTHROUGH is true.
+# API_PORT = "443"
+# Forward to the hostname the request arrived on instead of API_DOMAIN, so one
+# deployment can serve several [[routes]] and each hostname reaches its own
+# origin via the zone's DNS record. Requires the Worker Route topology with
+# global_fetch_strictly_public disabled, and API_DOMAIN must be removed.
+# See docs/deployment-topologies.md.
+# API_PASSTHROUGH = "true"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. APPROOV BACKEND CONFIG (required)
+# ─────────────────────────────────────────────────────────────────────────────
+# Export with `approov secret -getBackendConfig approov-config.json`, then set:
+#   wrangler secret put APPROOV_BACKEND_CONFIG < approov-config.json
+# This single encrypted value supplies defaultPassJWKS, passJWKS, failJWKS,
+# apis, current/pending/previous ARC secrets, and arcFlagMappings.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. MODE AND ENFORCEMENT
+# ─────────────────────────────────────────────────────────────────────────────
+# Required: "annotate" forwards every result in Approov-Result.
+# "block" never forwards Approov-Result and requires explicit layer actions.
+APPROOV_MODE = "annotate"
+# Block mode example (remove APPROOV_MODE above before using):
+# APPROOV_MODE = "block"
+# APPROOV_TOKEN_ACTION = "block"
+# APPROOV_MESSAGE_SIGNING_ACTION = "block"
+# When binding is enabled, also set APPROOV_TOKEN_BINDING_ACTION.
+# Actions: "block" rejects failures; "continue" checks and forwards failures.
+# No action variable or block response variable is accepted in annotate mode.
+# APPROOV_BLOCK_RESPONSE_STATUS = 403
+# APPROOV_BLOCK_RESPONSE_BODY = "Forbidden"
+# Optional path scope (comma separated). Unset: every request is checked.
+# Set: only matching paths are checked; other paths are forwarded unchecked and
+# unannotated. "*" stands for one path segment, so one entry covers every market:
+# APPROOV_PROTECTED_PATHS = "/shop/*/*/checkout, /customer/v*/carts"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. TOKEN VERIFICATION
+# ─────────────────────────────────────────────────────────────────────────────
+# Name of header field holding the Approov token.
+APPROOV_TOKEN_HEADER_NAME = "Approov-Token"
+# Optional JWT audience required in Approov tokens (needs `approov policy -setAudience on`).
+# Require `aud` to equal the hostname of the incoming request (recommended):
+# APPROOV_TOKEN_AUDIENCE_FROM_HOST = "true"
+# Or require a fixed `aud` value (single-hostname workers only; not both):
+# APPROOV_TOKEN_AUDIENCE = "approov-gateway.<CF_SUBDOMAIN>.workers.dev"
+# Temporary deployment-wide compatibility for APIs still using the default
+# HS256 account secret. Leave false for keyset-only deployments.
+APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET = "false"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. TOKEN BINDING (optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Enable token-binding verification (default false).
+APPROOV_TOKEN_BINDING_ENABLED = "false"
+# Header whose value is bound to the token.
+APPROOV_TOKEN_BINDING_HEADER_NAME = "Authorization"
+# Token claim holding the bound value (default "pay").
+# APPROOV_TOKEN_BINDING_CLAIM_NAME = "pay"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. MESSAGE SIGNING (optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# Optional explicit requirement: install, account, either, or both.
+# APPROOV_MESSAGE_SIGNING_REQUIRED = "either"
+# Unset: ipk → install, mskid → account, both → either; no claims → NOT_REQUIRED.
+# An explicit requirement also rejects tokens without signing claims.
+# Every present install/account member must pass, including optional members.
+# Allowed clock skew in seconds for message signatures.
+APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS = "60"
+# Maximum request body bytes consumed while checking Content-Digest.
+APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES = "1048576"
+# Account signatures need the secret below (raw or base64/base64url, auto-detected):
+#   wrangler secret put APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET
+# When configuring account signing, add that secret name
+# to [secrets].required so Wrangler loads it locally and validates deployments.
+# Optional account key id to match against the token's "mskid" claim:
+# APPROOV_ACCOUNT_MESSAGE_SIGNING_KEY_ID = "..."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. ARC (optional)
+# ─────────────────────────────────────────────────────────────────────────────
+# ARC configuration is read from APPROOV_BACKEND_CONFIG.
+# Missing ARC encoding secrets disable ARC annotation without blocking the worker.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. DIAGNOSTICS
+# ─────────────────────────────────────────────────────────────────────────────
+# Emit detailed Approov debug logs when set to "true".
+APPROOV_DEBUG = "false"
+# Echo mode: reply with the received message instead of forwarding (testing only).
+APPROOV_ECHO_MODE = "false"
+
+# Safe request analytics (opt-in). Detailed plugin summaries go to logs.
+APPROOV_ANALYTICS_ENABLED = "false"
+APPROOV_LOGGING_ENABLED = "false"
+
+# Uncomment to write core outcomes to native Workers Analytics Engine.
+# [[analytics_engine_datasets]]
+# binding = "APPROOV_ANALYTICS"
+# dataset = "approov_worker_v2"
+
+# Optional structured Workers Logs. Invocation logs can contain full URLs.
+# [observability.logs]
+# enabled = true
+# invocation_logs = false
+# head_sampling_rate = 1.0
+
+[build]
+# Regenerate the drop-in plugin registry so that
+# adding/removing a plugins/<name>/ folder is picked up on dev and deploy.
+command = "node scripts/generate-plugins.mjs"

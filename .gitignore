@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Wrangler / Cloudflare local state and build output
+.wrangler/
+dist/
+.dev.vars
+.dev.vars.*
+# ...but keep the committed template the Deploy to Cloudflare button reads.
+!.dev.vars.example
+wrangler.toml.bak
+
+# Local secrets / env
+.env
+.env.*
+approov-config.json
+approov-config.*.json
+approov-backend-config.json
+approov-backend-config.*.json
+
+# Test / coverage output
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+graphify-out/

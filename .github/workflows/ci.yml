@@ -1,0 +1,71 @@
+name: CI
+
+# Runs on every push to any branch and on every pull request targeting main.
+# The '**' pattern matches all branches (including slashes like feature/x) but
+# not tags. Configure these jobs as required status checks in the branch
+# protection rules for `main` so a PR can only be merged once they pass.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test dependency audit policy
+        run: npm run test:audit
+
+      - name: Audit dependencies
+        run: npm run audit
+
+      - name: Run tests
+        run: npm test
+
+      - name: Preflight and startup tests
+        run: npm run test:preflight
+
+  verify-build:
+    name: Verify worker build (wrangler dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check vendored bundle reproducibility
+        run: npm run check:vendor
+
+      # Bundles the worker and validates wrangler.toml without deploying or
+      # needing Cloudflare credentials. Catches build/config breakage in CI.
+      - name: Wrangler dry-run build
+        run: npm run deploy -- --dry-run --outdir=dist

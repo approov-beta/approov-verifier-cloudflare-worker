@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Approov Worker modes and logging</title>
+<style>body{font:16px system-ui;line-height:1.6;max-width:900px;margin:40px auto;padding:0 20px;color:#1e293b}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:12px;text-align:left}th{background:#f1f5f9}code,pre{background:#f1f5f9}pre{padding:16px;overflow:auto}</style></head>
+<body><h1>Approov Worker modes and logging</h1>
+<p>Set <code>APPROOV_MODE</code> to <code>annotate</code> or <code>block</code>. The mode is required.</p>
+<table><tr><th>Mode</th><th>Request decision</th><th>Approov-Result at the origin</th></tr>
+<tr><td>annotate</td><td>Run checks and forward every protection result.</td><td>Replace the client value with the Worker's authoritative result, including ERROR results.</td></tr>
+<tr><td>block</td><td>Run checks and reject if any layer configured as block fails. Continue actions forward failures.</td><td>Always absent, including on forwarded failures.</td></tr></table>
+<h2>Block actions</h2><p>Require explicit token and message-signing actions. Require a binding action when binding is enabled. Each action is <code>block</code> or <code>continue</code>. Annotation mode accepts none of these action variables.</p>
+<pre>APPROOV_MODE = "block"
+APPROOV_TOKEN_ACTION = "block"
+APPROOV_MESSAGE_SIGNING_ACTION = "block"
+APPROOV_TOKEN_BINDING_ENABLED = "true"
+APPROOV_TOKEN_BINDING_ACTION = "continue"</pre>
+<h2>Message-signature requirements</h2><p>Set <code>APPROOV_MESSAGE_SIGNING_REQUIRED</code> to <code>install</code>, <code>account</code>, <code>either</code>, or <code>both</code>. An explicit requirement also rejects tokens without signing claims. Every present install/account member must pass.</p>
+<p>When unset, retain compatibility with token-only deployments:</p><table><tr><th>Claims</th><th>Required signatures</th></tr>
+<tr><td>Neither</td><td>None</td></tr><tr><td>ipk</td><td>install</td></tr><tr><td>mskid</td><td>account</td></tr><tr><td>Both</td><td>At least one; every present member must pass</td></tr></table>
+<p>Use keys only from authenticated, unexpired tokens with a valid audience. Authentic FAIL tokens also receive dependent checks. Malformed claims fail when their member is required or present.</p>
+<h2>Workers Logs</h2><p><code>APPROOV_LOGGING_ENABLED="true"</code> logs every result and the final request decision in either mode. The default is false. Analytics Engine has its own enable switch. Errors remain logged.</p>
+<pre>{
+  "event": "approov.request", "version": 2,
+  "mode": "block", "action": "block", "validation": "FAIL",
+  "attestation": "FAIL", "responseStatus": 403
+}</pre>
+<p>Summaries include safe layer statuses, individual signature results, selected actions, and duration. Tokens, claims, credentials, bodies, keys, and full URLs are excluded. Debug diagnostics follow the same rule.</p>
+<h2>Configuration checks</h2><p>Preflight validates the selected Wrangler configuration and overrides. The Worker also validates its actual bindings during initialization. Invalid configuration refuses startup; later invalid binding changes return HTTP 500 before reaching the origin.</p>
+<p>See <a href="README.md">the README</a> and <a href="docs/migration-v1.1-to-v2.md">the migration guide</a>.</p></body></html>

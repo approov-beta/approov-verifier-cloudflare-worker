@@ -1,0 +1,39 @@
+# E2E test Worker config.
+#
+# Deploys the real worker with TEST key material so the synthetic L2 matrix can
+# exercise a genuinely-deployed edge Worker. All values here are non-sensitive
+# TEST values that mirror test/fixtures.js (the same keys L1 signs tokens with),
+# so synthetic tokens minted by the runner validate against this deployment.
+#
+# Echo mode is ON: the worker reflects the evaluated request (incl. the
+# Approov-Result header) instead of proxying upstream, giving the runner a
+# self-contained assertion surface. API_DOMAIN is therefore just a placeholder.
+#
+# Per-profile config (mode, actions, binding, ...)
+# is supplied at deploy time via `--var` (see test/e2e/profiles.mjs). Plugin
+# presence is controlled by the PLUGINS env var on the build command.
+name = "approov-gateway-e2e"
+main = "../../src/index.js"
+compatibility_date = "2025-12-15"
+compatibility_flags = [ "nodejs_compat" ]
+
+# Regenerate the plugin registry, honouring a PLUGINS allowlist if the deploy
+# sets one (empty = no plugins, unset = all discovered). The custom-build command
+# runs from the directory wrangler is invoked in (the repo root), while `main`
+# above is resolved relative to this config file.
+[build]
+command = "node scripts/generate-plugins.mjs"
+
+[vars]
+# Placeholder upstream — never hit because echo mode is on.
+API_DOMAIN = "e2e.invalid"
+APPROOV_ECHO_MODE = "true"
+
+# Test backend config (mirrors test/fixtures.js — default-kid keys).
+APPROOV_BACKEND_CONFIG = '{"currentArcEncodingSecret":"unit-test-arc-secret","pendingArcEncodingSecret":null,"previousArcEncodingSecrets":[],"defaultPassJWKS":{"keys":[{"kty":"oct","use":"sig","alg":"HS256","kid":"_HS256","k":"dW5pdC10ZXN0LWRlZmF1bHQtdG9rZW4tc2VjcmV0"}]},"passJWKS":{"keys":[{"kty":"EC","x":"EVs_o5-uQbTjL3chynL4wXgUg2R9q9UU8I5mEovUf84","y":"kGe5DgSIycKp8w9aJmoHhB1sB3QTugfnRWm5nU_TzsY","crv":"P-256","kid":"__default__","alg":"ES256","use":"sig"}]},"failJWKS":{"keys":[{"kty":"EC","x":"OoakUoe5GAVxpZq4M_xcXcyLBJVmKsPLLC8Q-CHaweA","y":"8VMqZ8nqz9KpLO-4u2FAT7Rmu5ZZuU30LYFysi7E5AM","crv":"P-256","kid":"__default__","alg":"ES256","use":"sig"}]},"apis":{"localhost":{"kid":"__default__","isPassKeyPresent":true,"isFailKeyPresent":true},"127.0.0.1":{"kid":"__default__","isPassKeyPresent":true,"isFailKeyPresent":true}}}'
+APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET = "dW5pdC10ZXN0LWFjY291bnQtc2VjcmV0"
+
+# Sensible defaults; individual profiles override via --var at deploy.
+APPROOV_MODE = "annotate"
+APPROOV_TOKEN_BINDING_ENABLED = "false"
+APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET = "false"
