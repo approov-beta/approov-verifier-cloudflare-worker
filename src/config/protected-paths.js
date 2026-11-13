@@ -31,7 +31,9 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // matches the rest of that segment only ("/customer/v*/carts"). "*" never
 // crosses a "/" and a whole-segment "*" never matches an empty segment. Every
 // other character is literal. Like a prefix, a pattern matches the path itself
-// and anything below it. Returns an anchored matcher for normalized paths.
+// and anything below it: "/api" covers "/api" and "/api/users", while "/api/*"
+// covers only what is below "/api". Returns an anchored matcher for
+// normalized paths.
 const compilePathPattern = (pattern) => {
   const segments = normalizePathForMatching(pattern)
     .split('/')
@@ -43,8 +45,9 @@ const compilePathPattern = (pattern) => {
  * Parse `APPROOV_PROTECTED_PATHS`, a comma-separated list of path patterns.
  *
  * Unset or blank keeps the default: every request reaching the Worker is
- * checked. An entry without a leading `/` would never match, so it is a
- * configuration error rather than a silently unprotected path.
+ * checked. An entry without a leading `/` would never match, and an entry with
+ * a trailing `/` would match only that exact path and nothing below it, so
+ * both are configuration errors rather than silently unprotected paths.
  *
  * @param {*} env Worker environment bindings.
  * @param {String[]} errors Mutable configuration error list.
@@ -58,6 +61,10 @@ export const parseProtectedPaths = (env, errors) => {
   const invalid = patterns.filter((pattern) => !pattern.startsWith('/'))
   if (invalid.length > 0) {
     errors.push('env.APPROOV_PROTECTED_PATHS entries must start with "/"')
+    return null
+  }
+  if (patterns.some((pattern) => pattern.endsWith('/'))) {
+    errors.push('env.APPROOV_PROTECTED_PATHS entries must not end with "/": use "/api" for a path and everything below it, or "/api/*" for only what is below it')
     return null
   }
   return Object.freeze(patterns.map(compilePathPattern))

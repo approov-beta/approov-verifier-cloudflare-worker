@@ -470,7 +470,7 @@ Defined in [`wrangler.toml`](wrangler.toml). **Restart the worker after changing
 | `APPROOV_TOKEN_BINDING_ACTION` | Required when binding is enabled in block mode | `block` or `continue`; prohibited otherwise. |
 | `APPROOV_BLOCK_RESPONSE_STATUS` | `403` | Block mode only; integer from 200 to 599. |
 | `APPROOV_BLOCK_RESPONSE_BODY` | `Forbidden` | Block mode only; string. |
-| `APPROOV_PROTECTED_PATHS` | unset (every path) | Comma-separated path prefixes to check; `*` stands for one path segment, so `/shop/*/*/checkout` covers every market. Other paths are forwarded unchecked and unannotated. Each entry must start with `/`. |
+| `APPROOV_PROTECTED_PATHS` | unset (every path) | Comma-separated path prefixes to check; `*` stands for one path segment, so `/shop/*/*/checkout` covers every market. An entry matches its path and everything below it: `/api` covers `/api` and `/api/users`, and `/api/*` covers only what is below `/api`. Other paths are forwarded unchecked and unannotated. Each entry must start with `/` and must not end with `/`. |
 
 Annotation mode prohibits all action and block-response variables, including empty values.
 Both actions run checks. `continue` forwards a failed result; `block` rejects it.

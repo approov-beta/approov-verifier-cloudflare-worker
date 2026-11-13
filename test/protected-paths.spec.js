@@ -81,6 +81,25 @@ describe('protected path patterns', () => {
     expect(ctx.isValid).toBe(false)
     expect(ctx.errors).toContain('env.APPROOV_PROTECTED_PATHS entries must start with "/"')
   })
+
+  it('covers a path and everything below it with a bare prefix, and only what is below it with "/*"', () => {
+    const prefix = contextFor('/api')
+    expect(isProtectedPath(prefix, '/api')).toBe(true)
+    expect(isProtectedPath(prefix, '/api/')).toBe(true)
+    expect(isProtectedPath(prefix, '/api/users/1')).toBe(true)
+    expect(isProtectedPath(prefix, '/apiary')).toBe(false)
+
+    const below = contextFor('/api/*')
+    expect(isProtectedPath(below, '/api/users')).toBe(true)
+    expect(isProtectedPath(below, '/api/users/1')).toBe(true)
+    expect(isProtectedPath(below, '/api')).toBe(false)
+  })
+
+  it.each(['/api/', '/', '/shop/*/'])('rejects the trailing-slash entry %s, which would protect nothing below it', (entry) => {
+    const ctx = contextFor(`/shop/*/*/checkout, ${entry}`)
+    expect(ctx.isValid).toBe(false)
+    expect(ctx.errors.some((error) => error.startsWith('env.APPROOV_PROTECTED_PATHS entries must not end with "/"'))).toBe(true)
+  })
 })
 
 describe('handleRequest with APPROOV_PROTECTED_PATHS', () => {
