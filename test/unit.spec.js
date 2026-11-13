@@ -695,6 +695,7 @@ describe('Message signing matrix (account mode)', () => {
       algorithm: 'hmac-sha256'
     })
 
+    const cancel = vi.spyOn(ReadableStreamDefaultReader.prototype, 'cancel')
     const response = await runWorker({
       headers: {
         ...headers,
@@ -712,6 +713,8 @@ describe('Message signing matrix (account mode)', () => {
     const result = await parseApproovResultFromResponse(response)
     expect(result.messageSigningResult).toBe('INVALID_CONTENT_DIGEST')
     expect(result.messageSigningVerification.error).toContain('3 byte limit')
+    // The over-limit body branch is released instead of buffering the upload.
+    expect(cancel).toHaveBeenCalledTimes(1)
   })
 
   it('returns INVALID_ACCOUNT_KEY_ID_CLAIM for a present account member when mskid is absent', async () => {

@@ -150,20 +150,26 @@ const verifyContentDigest = async (ctx, request) => {
     const reader = body.getReader()
     let bytesRead = 0
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      bytesRead += value.byteLength
-      if (bytesRead > ctx.approovMessageSigningMaxBodyBytes) {
-        throw new ContentDigestValidationError(
-          `Content-Digest body exceeds ${ctx.approovMessageSigningMaxBodyBytes} byte limit`
-        )
-      }
+        bytesRead += value.byteLength
+        if (bytesRead > ctx.approovMessageSigningMaxBodyBytes) {
+          throw new ContentDigestValidationError(
+            `Content-Digest body exceeds ${ctx.approovMessageSigningMaxBodyBytes} byte limit`
+          )
+        }
 
-      for (const { hash } of hashers) {
-        hash.update(value)
+        for (const { hash } of hashers) {
+          hash.update(value)
+        }
       }
+    } finally {
+      // Release the cloned branch. An abandoned, unread branch would otherwise
+      // buffer the rest of the body in memory while the request is forwarded.
+      try { await reader.cancel() } catch { /* the stream is already closed or errored */ }
     }
   }
 
