@@ -99,45 +99,69 @@ request headers and/or the body were not tampered with in transit. Token binding
 
 ```mermaid
 flowchart TD
-    A[Client request] --> B[Validate configuration]
-    B -->|Invalid| X[Refuse startup or return 500]
-    B -->|Valid| C[Verify Approov token]
+    A[Client request] --> B{Configuration valid?}
+    B -->|No| X[Refuse startup, or return 500]
+    B -->|Yes| P{Incoming hostname registered in apis?}
+    P -->|No| X2[Return 500]
+    P -->|Yes| S{Path protected?}
+    S -->|"No: outside APPROOV_PROTECTED_PATHS"| U[Remove Approov-Result]
+    S -->|"Yes: every path by default"| C[Verify Approov token]
     C --> D[Check enabled binding and required or present signatures]
     D --> E{APPROOV_MODE}
     E -->|annotate| F[Replace Approov-Result with authoritative result]
-    F --> O[Forward to origin]
     E -->|block| G{Any blocking layer failed?}
     G -->|Yes| H[Return configured block response]
     G -->|No| I[Remove Approov-Result]
+    F --> O[Forward to origin]
     I --> O
-    H --> L[Emit optional request summary]
-    O --> L
+    U --> O
+    O -->|Origin unreachable| Y[Return 502]
+    O -->|Origin responds| R[Return origin response]
+    X --> L[Emit optional request summary]
+    X2 --> L
+    H --> L
+    Y --> L
+    R --> L
 ```
 
-Message-signing requirements are automatic:
+Two diagnostic paths are left out of the diagram. With `APPROOV_ECHO_MODE` the Worker replies
+with the rewritten request instead of forwarding it. With `API_PASSTHROUGH` a forwarded request
+that comes back to the Worker is answered with `508 Loop Detected`.
+
+The message-signing requirement comes from `APPROOV_MESSAGE_SIGNING_REQUIRED`, or from the
+token's claims when that setting is unset:
 
 ```mermaid
 flowchart TD
     A[Completed token verification] --> B{Signature, expiry and audience valid?}
-    B -->|No| N[Required dependent checks NOT_CHECKED]
-    B -->|PASS or authentic FAIL| C{Claim presence}
-    C -->|Neither| D[Signing NOT_REQUIRED]
-    C -->|ipk only| E[Verify install signature]
-    C -->|mskid only| F[Verify account signature]
-    C -->|Both| G[Check body digest once]
-    G --> H[Verify install and account independently]
-    H --> I{Both valid?}
-    I -->|Yes| V[Overall VALID]
-    I -->|Verification failure| X[Overall INVALID]
-    I -->|Internal error| R[Overall ERROR]
-    E --> J[Record result and apply mode/actions]
-    F --> J
+    B -->|No| N[Signing NOT_CHECKED]
+    B -->|PASS or authentic FAIL| Q{APPROOV_MESSAGE_SIGNING_REQUIRED set?}
+    Q -->|Yes| R1["Requirement: the configured install, account, either or both"]
+    Q -->|No| C{Signing claims in the token}
+    C -->|Neither| R2["Requirement: none"]
+    C -->|ipk only| R3["Requirement: install"]
+    C -->|mskid only| R4["Requirement: account"]
+    C -->|Both| R5["Requirement: either"]
+    R1 --> S{Requirement is none and no install or account member was sent?}
+    R2 --> S
+    R3 --> S
+    R4 --> S
+    R5 --> S
+    S -->|Yes| D[Signing NOT_REQUIRED]
+    S -->|No| H[Check body digest once, then verify every required or present member independently]
+    H --> I{Member results}
+    I -->|All valid| V[VALID]
+    I -->|Any verification failure| X[Failure outcome]
+    I -->|Internal error| E[ERROR]
+    N --> J[Record result and apply mode and actions]
     D --> J
-    N --> J
     V --> J
     X --> J
-    R --> J
+    E --> J
 ```
+
+With `either`, at least one of the two members must be sent, and every member that is sent
+must verify. See [message signing checks](#message-signing-checks) for the full rules.
 
 ---
 
