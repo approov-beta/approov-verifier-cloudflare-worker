@@ -75,13 +75,15 @@ The host (`src/plugin-host.js`) provides:
   each plugin's config under `ctx.pluginConfig[id]` and lets plugins contribute
   startup errors that gate `ctx.isValid`. `shared` currently carries the parsed
   `backendConfig`.
-- `runPlugins(ctx, args, out)` — called by `evaluateApproovToken` after token
+- `runPlugins(ctx, args, out, observer)`: called by `evaluateApproovToken` after token
   verification; runs each plugin's `evaluate` and writes the result to
   `out[resultKey]`. A plugin that throws is isolated (records `ERROR`) and never
-  affects the core pass/fail outcome.
+  affects the core pass/fail outcome. The optional `observer` feeds the
+  analytics summary.
 
 Plugins depend only on `src/plugin-kit.js` (a stable host API surface: base64
-decode, text/boolean parsing, logging helpers) plus Node built-ins — never on
+decode, constant-time comparison, account device-key derivation, text/boolean
+parsing, error-message and logging helpers) plus Node built-ins, never on
 core internals directly.
 
 The shared validator checks `configSchema` during preflight, initialization, and requests.
