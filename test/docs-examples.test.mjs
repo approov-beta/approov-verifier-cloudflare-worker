@@ -59,6 +59,16 @@ test('the Tail example exports only approved fields from structured or JSON summ
   }
 })
 
+test('the Tail example accepts every action the request handler reports', async t => {
+  const handler = readFileSync(new URL('../src/worker/handle-request.js', import.meta.url), 'utf8')
+  const actions = [...new Set([...handler.matchAll(/'(forward|unprotected|block|echo|error)'/g)].map(match => match[1]))]
+  assert.deepEqual(actions.sort(), ['block', 'echo', 'error', 'forward', 'unprotected'])
+  const calls = []
+  t.mock.method(globalThis, 'fetch', async (...args) => { calls.push(args); return new Response(null) })
+  await tailWorker.tail([{ logs: [{ level: 'log', message: actions.map(action => ({ ...summary, action })) }] }])
+  assert.deepEqual(JSON.parse(calls[0][1].body).map(entry => entry.action), actions)
+})
+
 test('the Tail example validates values instead of forwarding unknown strings or objects', async t => {
   const calls = []
   t.mock.method(globalThis, 'fetch', async (...args) => { calls.push(args); return new Response(null) })

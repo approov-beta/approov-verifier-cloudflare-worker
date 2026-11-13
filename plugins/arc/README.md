@@ -4,9 +4,6 @@ Decodes the obfuscated Approov **ARC** (Attestation Response Code) token claim
 into a list of semantic property labels and surfaces them as `arcProperties` in
 the `Approov-Result` payload.
 
-> **Confidential.** ARC decoding is proprietary Approov logic. Treat this folder
-> (decoder + flag mappings) as classified.
-
 ## Files
 
 | File | Purpose |

@@ -102,9 +102,10 @@ complete configuration sequence.
 The Approov Worker outputs structured console logs for both debugging and audit purposes. To redirect these logs to an external log ingestion and stream analytics system (such as Datadog, Splunk, or Elasticsearch), you can use Cloudflare's native logging capabilities:
 
 ### Method 1: Cloudflare Logpush
+
 Cloudflare Logpush allows you to stream worker logs (Console messages, exceptions, and execution metadata) directly to external destinations in near real-time.
 
-1. Navigate to the **Cloudflare Dashboard** -> **Analytics & Logs** -> **Logpush**.
+1. In the Cloudflare dashboard, open **Analytics & Logs > Logpush**.
 2. Create a new Logpush job and select the **Workers Trace Events** dataset.
 3. Choose your log stream destination (e.g., Datadog, Splunk, HTTP endpoint).
 4. Review the exported fields before enabling the job. Workers Trace Events can include request metadata and exceptions, beyond safe console summaries.
@@ -113,10 +114,12 @@ Use a Tail Worker if the collector must receive only the allowlisted summary bel
 Do not export complete trace events or rely on heuristic credential redaction to define a privacy policy.
 
 ### Method 2: Tail Workers
+
 If you need custom log transformation or want to forward logs to a generic ingestion endpoint without using Logpush:
 
 1. Create a lightweight **Tail Worker** in your Cloudflare account.
 2. Configure it to listen to the main `approov-gateway` worker in your `wrangler.toml`:
+
    ```toml
    tail_consumers = [{ service = "my-log-tail-worker" }]
    ```
@@ -131,7 +134,7 @@ Malformed messages and unsupported versions produce no export. Changes to the su
 ```javascript
 const enums = {
   mode: ['annotate', 'block', 'UNAVAILABLE'],
-  action: ['block', 'forward', 'echo', 'error'],
+  action: ['block', 'forward', 'unprotected', 'echo', 'error'],
   presence: ['MISSING', 'EMPTY', 'PRESENT', 'NOT_CHECKED'],
   verification: [
     'VERIFIED', 'NOT_CHECKED', 'ERROR', 'EXPIRED', 'INVALID_AUD', 'INVALID_ALG',
@@ -214,6 +217,6 @@ Run `npm run test:preflight` to exercise this exact example against synthetic se
 
 ## Reference Links
 
-* **[Main README](../README.md)**: Refer back to the main README for general configuration options, keyset setup, and deployment guides.
-* **[Cloudflare Logpush Documentation](https://developers.cloudflare.com/logs/about/)**: Detailed information on setting up and managing Logpush jobs.
-* **[Cloudflare Tail Workers Documentation](https://developers.cloudflare.com/workers/observability/tail-workers/)**: Learn how to implement custom tail workers to intercept and forward logs.
+- **[Main README](../README.md)**: Refer back to the main README for general configuration options, keyset setup, and deployment guides.
+- **[Cloudflare Logpush Documentation](https://developers.cloudflare.com/logs/about/)**: Detailed information on setting up and managing Logpush jobs.
+- **[Cloudflare Tail Workers Documentation](https://developers.cloudflare.com/workers/observability/tail-workers/)**: Learn how to implement custom tail workers to intercept and forward logs.

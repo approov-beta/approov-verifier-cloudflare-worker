@@ -7,10 +7,10 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/approov-beta/approov-verifier-cloudflare-worker)
 
-> [!IMPORTANT]
-> Copyright © 2026 by Approov Limited — **Classified Confidential**.
-> Attestation Response Code (ARC) decoding is proprietary logic. Treat
-> [`plugins/arc/`](plugins/arc/) (the decoder and ARC flag mappings) as confidential.
+> [!NOTE]
+> Copyright © 2026 Approov Limited. Released under the [MIT License](LICENSE).
+> Customer-specific confidential logic is not part of this repository: Approov delivers it
+> separately as [drop-in plugins](#plugins).
 
 A reverse-proxy [Cloudflare Worker](https://developers.cloudflare.com/workers/) that
 verifies [Approov](https://approov.io) attestation tokens at the edge, annotates each
@@ -51,6 +51,7 @@ request in annotation mode, or applies explicit protection actions in block mode
 - [Plugins](#plugins)
 - [Custom Deployment Scenarios](#custom-deployment-scenarios)
 - [Debugging](#debugging)
+- [Troubleshooting](#troubleshooting)
 - [Codebase Structure](#codebase-structure)
 - [Testing](#testing)
 - [Outcome Reference](#outcome-reference)
@@ -98,45 +99,69 @@ request headers and/or the body were not tampered with in transit. Token binding
 
 ```mermaid
 flowchart TD
-    A[Client request] --> B[Validate configuration]
-    B -->|Invalid| X[Refuse startup or return 500]
-    B -->|Valid| C[Verify Approov token]
+    A[Client request] --> B{Configuration valid?}
+    B -->|No| X[Refuse startup, or return 500]
+    B -->|Yes| P{Incoming hostname registered in apis?}
+    P -->|No| X2[Return 500]
+    P -->|Yes| S{Path protected?}
+    S -->|"No: outside APPROOV_PROTECTED_PATHS"| U[Remove Approov-Result]
+    S -->|"Yes: every path by default"| C[Verify Approov token]
     C --> D[Check enabled binding and required or present signatures]
     D --> E{APPROOV_MODE}
     E -->|annotate| F[Replace Approov-Result with authoritative result]
-    F --> O[Forward to origin]
     E -->|block| G{Any blocking layer failed?}
     G -->|Yes| H[Return configured block response]
     G -->|No| I[Remove Approov-Result]
+    F --> O[Forward to origin]
     I --> O
-    H --> L[Emit optional request summary]
-    O --> L
+    U --> O
+    O -->|Origin unreachable| Y[Return 502]
+    O -->|Origin responds| R[Return origin response]
+    X --> L[Emit optional request summary]
+    X2 --> L
+    H --> L
+    Y --> L
+    R --> L
 ```
 
-Message-signing requirements are automatic:
+Two diagnostic paths are left out of the diagram. With `APPROOV_ECHO_MODE` the Worker replies
+with the rewritten request instead of forwarding it. With `API_PASSTHROUGH` a forwarded request
+that comes back to the Worker is answered with `508 Loop Detected`.
+
+The message-signing requirement comes from `APPROOV_MESSAGE_SIGNING_REQUIRED`, or from the
+token's claims when that setting is unset:
 
 ```mermaid
 flowchart TD
     A[Completed token verification] --> B{Signature, expiry and audience valid?}
-    B -->|No| N[Required dependent checks NOT_CHECKED]
-    B -->|PASS or authentic FAIL| C{Claim presence}
-    C -->|Neither| D[Signing NOT_REQUIRED]
-    C -->|ipk only| E[Verify install signature]
-    C -->|mskid only| F[Verify account signature]
-    C -->|Both| G[Check body digest once]
-    G --> H[Verify install and account independently]
-    H --> I{Both valid?}
-    I -->|Yes| V[Overall VALID]
-    I -->|Verification failure| X[Overall INVALID]
-    I -->|Internal error| R[Overall ERROR]
-    E --> J[Record result and apply mode/actions]
-    F --> J
+    B -->|No| N[Signing NOT_CHECKED]
+    B -->|PASS or authentic FAIL| Q{APPROOV_MESSAGE_SIGNING_REQUIRED set?}
+    Q -->|Yes| R1["Requirement: the configured install, account, either or both"]
+    Q -->|No| C{Signing claims in the token}
+    C -->|Neither| R2["Requirement: none"]
+    C -->|ipk only| R3["Requirement: install"]
+    C -->|mskid only| R4["Requirement: account"]
+    C -->|Both| R5["Requirement: either"]
+    R1 --> S{Requirement is none and no install or account member was sent?}
+    R2 --> S
+    R3 --> S
+    R4 --> S
+    R5 --> S
+    S -->|Yes| D[Signing NOT_REQUIRED]
+    S -->|No| H[Check body digest once, then verify every required or present member independently]
+    H --> I{Member results}
+    I -->|All valid| V[VALID]
+    I -->|Any verification failure| X[Failure outcome]
+    I -->|Internal error| E[ERROR]
+    N --> J[Record result and apply mode and actions]
     D --> J
-    N --> J
     V --> J
     X --> J
-    R --> J
+    E --> J
 ```
+
+With `either`, at least one of the two members must be sent, and every member that is sent
+must verify. See [message signing checks](#message-signing-checks) for the full rules.
 
 ---
 
@@ -148,6 +173,7 @@ flowchart TD
   The account must be configured to use an ECDSA or RSA key pair for signing and verifying
   tokens — see [Managing Key Sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets).
 - A Cloudflare account with a Worker entitlement.
+- `curl` and [`jq`](https://jqlang.org/) for the quickstart's test commands.
 - Optionally, the ability to grant [Wrangler](https://developers.cloudflare.com/workers/wrangler/)
   access to your Cloudflare account if you intend to deploy via the `wrangler` CLI.
 
@@ -220,8 +246,8 @@ continuing:
   ],
   "defaultPassJWKS": {
     "keys": [
-      { "alg": "A256GCMKW", "k": "ObfuscatedSymmetricKey",  "kid": "default_A256GCMKW", "kty": "oct", "use": "enc" },
-      { "alg": "HS256",     "k": "ObfuscatedSymmetricKey2", "kid": "default_HS256",      "kty": "oct", "use": "sig" }
+      { "alg": "A256GCMKW", "k": "ObfuscatedSymmetricKey",  "kid": "_A256GCMKW", "kty": "oct", "use": "enc" },
+      { "alg": "HS256",     "k": "ObfuscatedSymmetricKey2", "kid": "_HS256",     "kty": "oct", "use": "sig" }
     ]
   },
   "passJWKS": {
@@ -302,8 +328,8 @@ API_DOMAIN = "postman-echo.com"
 > zones. A private Worker through a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/)
 > requires a source extension. This version always uses global `fetch()`; declaring a binding
 > alone does not select it as the upstream.
-> The request path is forwarded unchanged. When testing against Postman Echo, request a
-> concrete endpoint such as `/anything` (its echo convenience endpoint) — the root path `/`
+> The request path is forwarded unchanged. When testing against Postman Echo, request one of
+> its echo endpoints, such as `/get` for a `GET` or `/post` for a `POST`. The root path `/`
 > is not an echo endpoint there.
 
 > [!WARNING]
@@ -341,9 +367,12 @@ Cloudflare [secrets](https://developers.cloudflare.com/workers/configuration/sec
 [dotenv](https://hexdocs.pm/dotenvy/dotenv-file-format.html) syntax):
 
 ```shell
-cp .dev.vars.example .dev.vars
-# then edit .dev.vars and paste your real key material
+printf "APPROOV_BACKEND_CONFIG='%s'\n" "$(jq -c . approov-config.json)" > .dev.vars
 ```
+
+The dotenv format needs the whole JSON document on **one line**, which is what `jq -c` produces
+from the export. Add any optional settings from [`.dev.vars.example`](.dev.vars.example) below
+that line. `.dev.vars` is git-ignored; never commit it.
 
 Run the worker:
 
@@ -446,7 +475,7 @@ loads all Approov JWKS and ARC configuration from this single encrypted value.
 
 ### Environment variables (`[vars]`)
 
-Defined in [`wrangler.toml`](wrangler.toml). **Restart the worker after changing any value.**
+Defined in [`wrangler.toml`](wrangler.toml). **Changes take effect on the next `npm run deploy`, or when `npm start` restarts locally.**
 
 <details>
 <summary><strong>Upstream</strong></summary>
@@ -470,7 +499,7 @@ Defined in [`wrangler.toml`](wrangler.toml). **Restart the worker after changing
 | `APPROOV_TOKEN_BINDING_ACTION` | Required when binding is enabled in block mode | `block` or `continue`; prohibited otherwise. |
 | `APPROOV_BLOCK_RESPONSE_STATUS` | `403` | Block mode only; integer from 200 to 599. |
 | `APPROOV_BLOCK_RESPONSE_BODY` | `Forbidden` | Block mode only; string. |
-| `APPROOV_PROTECTED_PATHS` | unset (every path) | Comma-separated path prefixes to check; `*` stands for one path segment, so `/shop/*/*/checkout` covers every market. Other paths are forwarded unchecked and unannotated. Each entry must start with `/`. |
+| `APPROOV_PROTECTED_PATHS` | unset (every path) | Comma-separated path prefixes to check; `*` stands for one path segment, so `/shop/*/*/checkout` covers every market. An entry matches its path and everything below it: `/api` covers `/api` and `/api/users`, and `/api/*` covers only what is below `/api`. Matching ignores case, percent-encoding, duplicate slashes and `;` path parameters, and also covers a suffix such as `/checkout.json`. Other paths are forwarded unchecked and unannotated. Each entry must start with `/` and must not end with `/`. |
 
 Annotation mode prohibits all action and block-response variables, including empty values.
 Both actions run checks. `continue` forwards a failed result; `block` rejects it.
@@ -576,7 +605,7 @@ Block mode requires a backend ingress that trusts the Worker; result-header midd
 
 `APPROOV_LOGGING_ENABLED="true"` emits one structured summary per request in either mode.
 `APPROOV_DEBUG` controls additional diagnostics. Errors and warnings remain enabled.
-See [Worker analytics](docs/worker-analytics-proposal.md).
+See [Worker analytics](docs/worker-analytics.md).
 
 ### Configuration validation
 
@@ -618,7 +647,7 @@ JSON** with these fields:
 A request with `clientStatus: success` and no valid token still fails token verification.
 Unknown, repeated, empty, and oversized status values produce `invalid`. The Worker does not log their raw values.
 Structured request logs also contain `clientStatus`. Analytics Engine schema version 3 adds this value in `blob11`.
-Before rollout, update version-specific log and analytics consumers. See the [analytics migration notes](docs/worker-analytics-proposal.md#analytics-engine-columns).
+Before rollout, update version-specific log and analytics consumers. See the [analytics migration notes](docs/worker-analytics.md#analytics-engine-columns).
 
 Decode the result like this:
 
@@ -796,7 +825,7 @@ reproduction, impact analysis, and guidance for reviewing other backend implemen
 
 Token binding ties a token to a value carried in a request header. It is **off** by default
 (`APPROOV_TOKEN_BINDING_ENABLED = "false"`). To enable it, set `APPROOV_TOKEN_BINDING_ENABLED = "true"` and
-restart the worker.
+deploy again.
 
 A token is **bound** when the SHA-256/base64 hash of the binding header value (default
 `Authorization`) matches the binding claim in the token payload (default `pay`). Change the
@@ -808,10 +837,9 @@ Generate a token that embeds a data hash:
 approov token -genExample $(WORKER_NAME).$(WORKER_DOMAIN) -setDataHashInToken 'Bearer 0123456789abcdef'
 ```
 
-Send the **same** value in the binding header:
-
-Use the registered gateway hostname from the local quickstart. `--resolve` sends the request
-to localhost while preserving the hostname that selects its Approov policy.
+Send the **same** value in the binding header. As in the local quickstart, `--resolve` sends
+the request to localhost while preserving the registered gateway hostname that selects its
+Approov policy:
 
 ```shell
 curl --resolve "$(WORKER_NAME).$(WORKER_DOMAIN):8787:127.0.0.1" \
@@ -839,7 +867,7 @@ curl --resolve "$(WORKER_NAME).$(WORKER_DOMAIN):8787:127.0.0.1" \
 { "tokenResult": "PASS", "bindingResult": "INVALID", /* ... */ }
 ```
 
-See [Approov Token Binding](https://approov.io/docs/latest/approov-usage-documentation/#token-binding)
+See [Approov Token Binding](https://ext.approov.io/docs/latest/approov-usage-documentation/#token-binding)
 for full details.
 
 ### Message signing checks
@@ -929,17 +957,12 @@ The verified `did` claim must contain canonical, padded standard base64 for exac
 Missing or malformed values produce `INVALID_DEVICE_ID_CLAIM` for the account signature.
 Unpadded values, base64url, whitespace, and nonzero padding bits fail verification.
 The Worker derives no key from an untrusted token. Installation-only tokens do not require `did`.
-The fixed fallback DeviceID uses the same derivation. Its shared-key and device-transition limits remain in
-[#902](https://github.com/approov/core-project-approov/issues/902).
+The fixed fallback DeviceID uses the same derivation, so every device that reports it shares one key.
 
 **Account-signing compatibility:** the Worker accepts device-derived signatures only. It does not try the raw account secret as a verification key.
-The attester version determines this format, independently of the SDK version.
-Coordinate the Worker and attester rollout with account-signing customers before release.
-An attester or failover service that supplies raw-secret keys produces signatures that this Worker rejects.
-See [#661](https://github.com/approov/core-project-approov/issues/661),
-the [release tracker](https://github.com/approov/core-project-approov/issues/883), and the separate
-[failover change #904](https://github.com/approov/core-project-approov/issues/904).
-This change covers RFC 9421 account signatures.
+The Approov service version, not the SDK version, determines which key format an app receives.
+A request signed with the raw account secret is rejected. If account signatures fail for every device after you enable this check,
+contact [Approov support](https://approov.io/info/contact) to confirm that your account issues device-derived keys.
 
 Optional tuning values:
 
@@ -957,10 +980,9 @@ approov secret -messageSigningKey get-base64url
 approov secret -messageSigningKey change
 ```
 
-Then configure the secret and, optionally, a fixed key id to match the token's `mskid`:
-
-Store the account message-signing secret in `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`.
-Do not replace it with a device key. The Worker derives that key for each authenticated request.
+Store that account secret in `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`. Do not replace it with a
+device key: the Worker derives that key for each authenticated request. Optionally also set a
+fixed key id that the token's `mskid` must match:
 
 ```shell
 npx wrangler secret put APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET
@@ -984,8 +1006,9 @@ These fields are prohibited in annotation mode.
 
 ## Plugins
 
-Optional and confidential capabilities are delivered as **drop-in plugins** under
-`plugins/<name>/` rather than baked into the core worker. A plugin is discovered
+Optional capabilities are **drop-in plugins** under `plugins/<name>/` rather than part of the
+core worker. The ARC plugin ships in this repository; Approov delivers customer-specific
+confidential plugins separately, and you add one by copying its folder into `plugins/`. A plugin is discovered
 automatically at build time, declares and parses its own configuration, and produces informational results.
 These results enter annotations or structured logs according to the Worker mode and logging settings.
 Plugins do not affect enforcement. When removing a plugin, also remove its configuration fields.
@@ -1035,13 +1058,28 @@ Set `APPROOV_DEBUG = "true"` to emit detailed logs covering:
 
 Debug logs exclude tokens, encoded ARC, decoded claims, binding hashes, bodies,
 full URLs, and raw exception text. Decoded ARC properties and other safe plugin
-details are available through opt-in [Worker analytics](docs/worker-analytics-proposal.md).
+details are available through opt-in [Worker analytics](docs/worker-analytics.md).
 
 Stream them with:
 
 ```shell
 npx wrangler tail --format pretty
 ```
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Every request returns `500 Internal Server Error` | The incoming hostname has no usable Approov policy. The Worker logs `approov: unable to resolve incoming API policy` with a `reason` naming the hostname and what is missing: it is absent from `apis`, has token checking disabled, or has no `kid` while `APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET` is `false`. Register the hostname ([step 3](#3-register-the-gateway-domain-with-approov)), export the configuration again and upload it. Locally, call the registered hostname with `curl --resolve` rather than `localhost`. |
+| `npm start` or `npm run deploy` stops with `Invalid Approov configuration` | Preflight lists each invalid or unknown variable by name. Fix the listed entries in `wrangler.toml` or `.dev.vars`. |
+| Cloudflare rejects an upload with validation error `10021` | A deployed binding, usually the `APPROOV_BACKEND_CONFIG` secret, is missing or invalid. Upload the secret again from a fresh export. |
+| Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Export and upload the configuration again after any keyset or API change. |
+| `502 Bad Gateway` with the body `Bad Gateway` | The Worker could not reach the upstream and logged `approov: upstream request failed`. Check `API_DOMAIN`, `API_PORT` and that the origin accepts HTTPS. |
+| `508 Loop Detected` | `API_PASSTHROUGH` is enabled outside the Worker Route topology, or `global_fetch_strictly_public` is on. See [deployment topologies](docs/deployment-topologies.md). |
+
+Read the Worker's log lines with `npx wrangler tail --format pretty`.
 
 ---
 
@@ -1053,30 +1091,44 @@ The worker is split into focused modules so each concern is easy to review and m
 
 | File | Responsibility |
 |---|---|
-| [`src/index.js`](src/index.js) | Minimal Cloudflare `fetch` entrypoint. |
+| [`src/index.js`](src/index.js) | Cloudflare `fetch` entrypoint; validates the bindings when the Worker starts. |
 | [`src/worker/handle-request.js`](src/worker/handle-request.js) | Top-level request lifecycle and enforcement/annotation decisions. |
 
 **Configuration & shared primitives**
 
 | File | Responsibility |
 |---|---|
-| [`src/config/context.js`](src/config/context.js) | Environment parsing, validation, and the immutable runtime context. |
+| [`src/config/schema.mjs`](src/config/schema.mjs) | Variable schema and policy rules shared by the Worker and the Wrangler preflight. |
+| [`src/config/context.js`](src/config/context.js) | Environment parsing, key loading, per-hostname policy, and the immutable runtime context. |
+| [`src/config/protected-paths.js`](src/config/protected-paths.js) | `APPROOV_PROTECTED_PATHS` parsing and path matching. |
 | [`src/constants.js`](src/constants.js) | Outcome enums and configuration constants. |
 | [`src/utils/text.js`](src/utils/text.js) | Text/boolean parsing helpers. |
 | [`src/utils/crypto.js`](src/utils/crypto.js) | Hashing and strict base64/base64url decoding. |
 | [`src/utils/logging.js`](src/utils/logging.js) | Centralized logging helpers. |
-| [`src/vendor/http-message-signatures.js`](src/vendor/http-message-signatures.js) | Vendored module interop resolution. |
+| [`src/utils/errors.js`](src/utils/errors.js) | Error-message normalization. |
 
 **Approov verification**
 
 | File | Responsibility |
 |---|---|
+| [`src/approov/evaluate.js`](src/approov/evaluate.js) | Composed per-request evaluation flow. |
 | [`src/approov/token.js`](src/approov/token.js) | Token verification and JWT error classification. |
 | [`src/approov/binding.js`](src/approov/binding.js) | Token binding verification. |
 | [`src/approov/message-signing.js`](src/approov/message-signing.js) | Installation/account message-signature verification. |
-| [`src/approov/evaluate.js`](src/approov/evaluate.js) | Composed per-request evaluation flow. |
+| [`src/approov/account-key.js`](src/approov/account-key.js) | Device key derivation for account signatures. |
+| [`src/approov/client-status.js`](src/approov/client-status.js) | Filtering of the client-supplied status header. |
+| [`src/approov/policy.js`](src/approov/policy.js) | Maps verification results to layer failures and the block decision. |
+| [`src/vendor/http-message-signatures.js`](src/vendor/http-message-signatures.js) | Entry to the vendored RFC 9421 bundle ([build guide](vendor/README.md)). |
+
+**Plugins & analytics**
+
+| File | Responsibility |
+|---|---|
 | [`src/plugin-host.js`](src/plugin-host.js) | Drop-in plugin registry loader and lifecycle runner. |
-| [`plugins/arc/`](plugins/arc/) | ARC decoding plugin (proprietary). |
+| [`src/plugin-kit.js`](src/plugin-kit.js) | The stable API surface plugins may import. |
+| `src/plugins.generated.js` | Build-time plugin registry written by `scripts/generate-plugins.mjs`. |
+| [`plugins/arc/`](plugins/arc/) | ARC decoding plugin. |
+| [`src/analytics.js`](src/analytics.js) | Optional per-request summary for Workers Logs and Analytics Engine. |
 
 **HTTP proxy**
 
@@ -1084,58 +1136,37 @@ The worker is split into focused modules so each concern is easy to review and m
 |---|---|
 | [`src/http/proxy.js`](src/http/proxy.js) | Rewrites the incoming request to target the upstream API. |
 
+**Tooling**
+
+| File | Responsibility |
+|---|---|
+| [`scripts/wrangler.mjs`](scripts/wrangler.mjs), [`scripts/preflight.mjs`](scripts/preflight.mjs) | Validate the selected configuration, then run Wrangler (`npm start`, `npm run deploy`). |
+| [`scripts/validate-config.js`](scripts/validate-config.js) | `npm run validate:config`. |
+| [`scripts/audit.mjs`](scripts/audit.mjs) | Dependency audit gate. |
+| [`scripts/build-message-signatures.mjs`](scripts/build-message-signatures.mjs) | Rebuilds or checks the vendored message-signature bundle. |
+
 ---
 
 ## Testing
 
 ```shell
-npm test      # Workers tests with full coverage
-npm run test:preflight # configuration and actual startup tests
-npm run lint  # eslint
+npm test                # Workers runtime tests; fails below 100% coverage
+npm run test:preflight  # configuration preflight, startup, and documentation-example tests
+npm run test:audit      # dependency audit policy and lint policy tests
+npm run lint            # eslint
+npm run audit           # dependency audit gate
+npm run check:vendor    # vendored bundle matches its sources
 ```
 
-Run `npm run audit` for the CI dependency gate and `npm run test:audit` for its policy tests.
-The gate includes all severities and development dependencies. A narrowly scoped, expiring
-minimatch false-positive exception is documented in [the audit policy](docs/dependency-audit.md).
-Raw `npm audit` remains the unfiltered diagnostic; the policy output lists every excepted entry.
+`npm test` runs every `test/*.spec.js` suite and each plugin's `plugins/<name>/*.spec.js` in the
+Workers runtime. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs all of the
+commands above plus a `wrangler deploy --dry-run` build on every push and on pull requests to `main`.
+The audit gate includes all severities and development dependencies and has no exceptions; see
+[the audit policy](docs/dependency-audit.md).
 
-The suite in [`test/unit.spec.js`](test/unit.spec.js) is also enforced in CI
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), which runs the tests and a
-`wrangler deploy --dry-run` build check on every push and PR to `main`.
+The deployed end-to-end matrix is separate and manual; see [`test/e2e/README.md`](test/e2e/README.md).
 
-<details>
-<summary><strong>Token outcomes (default <code>token</code> strategy)</strong></summary>
-
-| Scenario | `tokenResult` | `bindingResult` |
-|---|---|---|
-| No `Approov-Token` header | `MISSING_HEADER` | `DISABLED` |
-| Empty `Approov-Token` header | `EMPTY_HEADER` | `DISABLED` |
-| Valid pass token | `PASS` | `DISABLED` |
-| Valid fail token | `FAIL` | `DISABLED` |
-| Unknown signer | `INVALID_SIG` | `DISABLED` |
-| Audience mismatch | `INVALID_AUD` | `DISABLED` |
-| Unsupported JWT algorithm | `INVALID_ALG` | `DISABLED` |
-| Malformed JWT | `MALFORMED` | `DISABLED` |
-| Unparsable JWT | `UNPARSABLE` | `DISABLED` |
-| Expired token | `EXPIRED` | `DISABLED` |
-
-</details>
-
-<details>
-<summary><strong>Binding outcomes (<code>token-binding</code> strategy)</strong></summary>
-
-| Scenario | `tokenResult` | `bindingResult` |
-|---|---|---|
-| Missing token header | `MISSING_HEADER` | `NOT_CHECKED` |
-| PASS token + missing binding header | `PASS` | `MISSING_HEADER` |
-| PASS token + empty binding header | `PASS` | `EMPTY_HEADER` |
-| PASS token + missing binding claim | `PASS` | `MISSING_CLAIM` |
-| PASS token + hash mismatch | `PASS` | `INVALID` |
-| PASS token + hash match | `PASS` | `VALID` |
-| Authentic FAIL token | `FAIL` | Binding checked using trusted claims |
-| INVALID_SIG token | `INVALID_SIG` | `NOT_CHECKED` |
-
-</details>
+The suites cover these message-signing scenarios:
 
 <details>
 <summary><strong>Message-signing coverage</strong></summary>
@@ -1153,10 +1184,45 @@ The suite in [`test/unit.spec.js`](test/unit.spec.js) is also enforced in CI
 
 ## Outcome Reference
 
-The canonical outcome enums live in [`src/constants.js`](src/constants.js).
+The canonical outcome enums live in [`src/constants.js`](src/constants.js). The first two tables
+show which outcome each common scenario produces; the lists after them give every possible value.
 
 <details>
-<summary><strong>Token outcomes</strong></summary>
+<summary><strong>Token scenarios (token binding disabled)</strong></summary>
+
+| Scenario | `tokenResult` | `bindingResult` |
+|---|---|---|
+| No `Approov-Token` header | `MISSING_HEADER` | `DISABLED` |
+| Empty `Approov-Token` header | `EMPTY_HEADER` | `DISABLED` |
+| Valid pass token | `PASS` | `DISABLED` |
+| Valid fail token | `FAIL` | `DISABLED` |
+| Unknown signer | `INVALID_SIG` | `DISABLED` |
+| Audience mismatch | `INVALID_AUD` | `DISABLED` |
+| Unsupported JWT algorithm | `INVALID_ALG` | `DISABLED` |
+| Malformed JWT, or a signed token without a numeric `exp` claim | `MALFORMED` | `DISABLED` |
+| Unparsable JWT | `UNPARSABLE` | `DISABLED` |
+| Expired token | `EXPIRED` | `DISABLED` |
+
+</details>
+
+<details>
+<summary><strong>Binding scenarios (token binding enabled)</strong></summary>
+
+| Scenario | `tokenResult` | `bindingResult` |
+|---|---|---|
+| Missing token header | `MISSING_HEADER` | `NOT_CHECKED` |
+| PASS token + missing binding header | `PASS` | `MISSING_HEADER` |
+| PASS token + empty binding header | `PASS` | `EMPTY_HEADER` |
+| PASS token + missing binding claim | `PASS` | `MISSING_CLAIM` |
+| PASS token + hash mismatch | `PASS` | `INVALID` |
+| PASS token + hash match | `PASS` | `VALID` |
+| Authentic FAIL token | `FAIL` | Binding checked using trusted claims |
+| INVALID_SIG token | `INVALID_SIG` | `NOT_CHECKED` |
+
+</details>
+
+<details>
+<summary><strong>All token outcomes</strong></summary>
 
 `PASS`, `FAIL`, `EXPIRED`, `INVALID_AUD`, `INVALID_ALG`, `INVALID_SIG`, `MALFORMED`,
 `UNPARSABLE`, `MISSING_HEADER`, `EMPTY_HEADER`, `NOT_CHECKED`, `ERROR`.
@@ -1164,7 +1230,7 @@ The canonical outcome enums live in [`src/constants.js`](src/constants.js).
 </details>
 
 <details>
-<summary><strong>Binding outcomes</strong></summary>
+<summary><strong>All binding outcomes</strong></summary>
 
 `VALID`, `INVALID`, `DISABLED`, `MISSING_HEADER`, `EMPTY_HEADER`, `MISSING_CLAIM`,
 `NOT_CHECKED`, `ERROR`.
@@ -1172,7 +1238,7 @@ The canonical outcome enums live in [`src/constants.js`](src/constants.js).
 </details>
 
 <details>
-<summary><strong>Message-signing outcomes</strong></summary>
+<summary><strong>All message-signing outcomes</strong></summary>
 
 `VALID`, `INVALID`, `NOT_REQUIRED`, `NOT_CHECKED`, `MISSING_HEADERS`, `MALFORMED_HEADERS`,
 `MISSING_SIGNATURE_ENTRY`, `INVALID_CONTENT_DIGEST`, `MISSING_CONTENT_DIGEST`,
@@ -1191,16 +1257,16 @@ The claim must contain canonical, padded standard base64 for exactly 16 bytes.
 **Cloudflare — development**
 
 - [Getting started](https://developers.cloudflare.com/workers/)
-- [Debugging Workers](https://developers.cloudflare.com/workers/learning/debugging-workers/)
+- [Observability and debugging](https://developers.cloudflare.com/workers/observability/)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
 
 **Cloudflare — logs**
 
-- [Tail logs with the Wrangler CLI](https://developers.cloudflare.com/workers/tooling/wrangler/commands/#tail)
-- [Cloudflare Logs (Enterprise)](https://www.cloudflare.com/products/cloudflare-logs/)
+- [Tail logs with the Wrangler CLI](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/)
+- [Workers Logpush](https://developers.cloudflare.com/workers/observability/logs/logpush/)
 
 **Approov**
 
 - [Approov installation](https://ext.approov.io/docs/latest/approov-installation/)
 - [Managing key sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets)
-- [Token binding](https://approov.io/docs/latest/approov-usage-documentation/#token-binding)
+- [Token binding](https://ext.approov.io/docs/latest/approov-usage-documentation/#token-binding)

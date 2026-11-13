@@ -1,9 +1,11 @@
 # Plugin architecture
 
 This worker supports **drop-in plugins**: self-contained feature modules under
-`plugins/<name>/` that are wired in automatically at build time. This lets
-confidential or optional capabilities live outside the public repo and be
-delivered only to customers who need them — without editing the core worker.
+`plugins/<name>/` that are wired in automatically at build time. Optional
+capabilities stay out of the core, and Approov can deliver customer-specific
+confidential plugins separately: copying such a folder into `plugins/` adds it
+without editing the core worker. The plugins in this repository are covered by
+its MIT licence.
 
 This document describes the **mechanism**. Each plugin documents itself in its
 own folder — see the [shipped plugins](#shipped-plugins) below.
@@ -73,13 +75,15 @@ The host (`src/plugin-host.js`) provides:
   each plugin's config under `ctx.pluginConfig[id]` and lets plugins contribute
   startup errors that gate `ctx.isValid`. `shared` currently carries the parsed
   `backendConfig`.
-- `runPlugins(ctx, args, out)` — called by `evaluateApproovToken` after token
+- `runPlugins(ctx, args, out, observer)`: called by `evaluateApproovToken` after token
   verification; runs each plugin's `evaluate` and writes the result to
   `out[resultKey]`. A plugin that throws is isolated (records `ERROR`) and never
-  affects the core pass/fail outcome.
+  affects the core pass/fail outcome. The optional `observer` feeds the
+  analytics summary.
 
 Plugins depend only on `src/plugin-kit.js` (a stable host API surface: base64
-decode, text/boolean parsing, logging helpers) plus Node built-ins — never on
+decode, constant-time comparison, account device-key derivation, text/boolean
+parsing, error-message and logging helpers) plus Node built-ins, never on
 core internals directly.
 
 The shared validator checks `configSchema` during preflight, initialization, and requests.
@@ -131,7 +135,7 @@ credentials, claims, bodies, or exception text.
 The host isolates hook errors and rejects unsupported or oversized summaries.
 Legacy plugins work without this hook. Plugin summaries enter structured logs;
 they do not change `Approov-Result` or the core Analytics Engine columns.
-See [Worker analytics](worker-analytics-proposal.md) for limits and configuration.
+See [Worker analytics](worker-analytics.md) for limits and configuration.
 
 ## Tests
 

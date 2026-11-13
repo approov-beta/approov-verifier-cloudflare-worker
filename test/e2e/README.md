@@ -14,9 +14,9 @@ They are the middle layer of a test pyramid:
 
 | Layer | What | Where |
 |-------|------|-------|
-| **L1** | All logic + edge cases, synthetic tokens, in-process | `test/unit.spec.js`, `plugins/**/*.spec.js` |
+| **L1** | All logic + edge cases, synthetic tokens, in-process | `test/*.spec.js`, `plugins/**/*.spec.js` |
 | **L2** | Deployed worker + synthetic HTTP matrix (this folder) | `test/e2e/` |
-| **L3** | Real iOS device + Approov SDK (deferred) | — (Shapes app, later) |
+| **L3** | Real device + Approov SDK | Not part of this repository |
 
 ## How it works
 
@@ -36,7 +36,7 @@ They are the middle layer of a test pyramid:
   `none`, `arc` only, all. This exercises the drop-in
   discovery/wiring flow itself.
 - **Runtime config** (via `--var` at deploy): annotate, block, continue, mixed actions,
-  token binding, and automatic install/account/both signatures.
+  token binding, and install, account, either and both signature requirements.
   Block mode checks that forwarded requests contain no `Approov-Result` header.
 
 ## Running it

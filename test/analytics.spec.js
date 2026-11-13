@@ -137,13 +137,14 @@ describe('core request analytics', () => {
     expect(writeDataPoint).toHaveBeenCalledTimes(1)
   })
 
-  it('preserves upstream exceptions and established validation without retrying', async () => {
-    const failure = new Error('upstream unavailable')
-    fetch.mockRejectedValue(failure)
-    await expect(handleRequest(request(passing()), enabledEnv())).rejects.toBe(failure)
+  it('reports an unreachable upstream as a 502 with established validation and no retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fetch.mockRejectedValue(new Error('upstream unavailable'))
+    const response = await handleRequest(request(passing()), enabledEnv())
+    expect(response.status).toBe(502)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(event()).toMatchObject({ validation: 'PASS', action: 'error', responseStatus: null, upstreamStatus: null })
-    expect(writeDataPoint.mock.calls[0][0].doubles.slice(0, 2)).toEqual([-1, -1])
+    expect(event()).toMatchObject({ validation: 'PASS', action: 'error', responseStatus: 502, upstreamStatus: null })
+    expect(writeDataPoint.mock.calls[0][0].doubles.slice(0, 2)).toEqual([502, -1])
   })
 
   it('preserves completed verification while forwarding an ERROR annotation', async () => {

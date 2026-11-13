@@ -48,7 +48,9 @@ APPROOV_MODE = "annotate"
 # APPROOV_BLOCK_RESPONSE_BODY = "Forbidden"
 # Optional path scope (comma separated). Unset: every request is checked.
 # Set: only matching paths are checked; other paths are forwarded unchecked and
-# unannotated. "*" stands for one path segment, so one entry covers every market:
+# unannotated. "*" stands for one path segment, so one entry covers every market.
+# An entry covers its path and everything below it: "/api" covers "/api" and
+# "/api/users"; "/api/*" covers only what is below "/api". A trailing "/" is an error.
 # APPROOV_PROTECTED_PATHS = "/shop/*/*/checkout, /customer/v*/carts"
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,11 @@
 {
-  "name": "approov-worker",
-  "version": "0.0.0",
+  "name": "approov-verifier-cloudflare-worker",
+  "version": "2.0.0",
+  "description": "Cloudflare Worker that verifies Approov tokens at the edge",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.20.0",
     "@vitest/coverage-istanbul": "~4.1.12",

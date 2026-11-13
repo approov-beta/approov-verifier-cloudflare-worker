@@ -15,10 +15,14 @@
 # Required: single backend config secret
 # ─────────────────────────────────────────────────────────────────────────────
 # Paste the full contents of `approov-config.json` (from
-# `approov secret -getBackendConfig approov-config.json`) on one line.
+# `approov secret -getBackendConfig approov-config.json`) on one line, or
+# generate the line with:
+#   printf "APPROOV_BACKEND_CONFIG='%s'\n" "$(jq -c . approov-config.json)"
 # This populates the default/pass/fail JWKS, API assignments, ARC encoding
 # secret, and ARC flag mappings.
-APPROOV_BACKEND_CONFIG='{"currentArcEncodingSecret":"...","pendingArcEncodingSecret":null,"previousArcEncodingSecrets":[],"defaultPassJWKS":{"keys":[{"kty":"oct","use":"sig","alg":"HS256","kid":"_HS256","k":"..."}]},"passJWKS":{"keys":[]},"failJWKS":{"keys":[]},"arcFlagMappings":{"1":"debug","2":"scan-fail"},"apis":{"localhost":{"kid":"example-es256","isPassKeyPresent":true,"isFailKeyPresent":true}}}'
+# The `apis` map must contain the hostname you send local requests to; the
+# README shows how to reach the registered gateway hostname on localhost.
+APPROOV_BACKEND_CONFIG='{"currentArcEncodingSecret":"...","pendingArcEncodingSecret":null,"previousArcEncodingSecrets":[],"defaultPassJWKS":{"keys":[{"kty":"oct","use":"sig","alg":"HS256","kid":"_HS256","k":"..."}]},"passJWKS":{"keys":[]},"failJWKS":{"keys":[]},"arcFlagMappings":{"1":"debug","2":"scan-fail"},"apis":{"approov-gateway.example.workers.dev":{"kid":"example-es256","isPassKeyPresent":true,"isFailKeyPresent":true}}}'
 
 # Enable only while accepting/migrating APIs that use the default account secret.
 APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET="false"

@@ -220,9 +220,9 @@ npx wrangler tail --format pretty
 - **`Invoke-WebRequest: A parameter cannot be found that matches parameter name 'resolve'`** —
   you invoked `curl` rather than `curl.exe`.
 - **Worker returns 500** — the incoming hostname is not present in
-  `APPROOV_BACKEND_CONFIG.apis`, or its entry has no `kid`. Both cases are raised from
-  [`src/config/context.js`](../src/config/context.js). Set `APPROOV_DEBUG = "true"` in
-  [`wrangler.toml`](../wrangler.toml) and watch `npx wrangler tail`.
+  `APPROOV_BACKEND_CONFIG.apis`, or its entry has no `kid`. Run `npx wrangler tail` (or read
+  the `npm start` output): the `approov: unable to resolve incoming API policy` line carries a
+  `reason` that names the hostname and what is missing.
 - **`invalid env.APPROOV_BACKEND_CONFIG`** — the secret was uploaded with the wrong encoding.
   Re-export with the Approov CLI and re-upload using the pipe form.
 

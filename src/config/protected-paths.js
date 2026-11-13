@@ -3,13 +3,14 @@ import { trimOrNull } from '../utils/text.js'
 /**
  * Normalize a path for matching only; the forwarded URL is never changed.
  *
- * Many origins percent-decode, collapse duplicate slashes or route
- * case-insensitively, so a raw comparison would let an encoded spelling of a
- * protected path reach the origin unchecked. A false positive only adds
- * checks; a false negative skips them.
+ * Many origins percent-decode, collapse duplicate slashes, treat a backslash
+ * as a slash, drop ";" path parameters or route case-insensitively, so a raw
+ * comparison would let an alternate spelling of a protected path reach the
+ * origin unchecked. A false positive only adds checks; a false negative skips
+ * them.
  *
  * @param {String} pathname URL path.
- * @returns {String} Decoded, slash-collapsed, lowercase path.
+ * @returns {String} Decoded, parameter-free, slash-collapsed, lowercase path.
  */
 export const normalizePathForMatching = (pathname) => {
   let path = String(pathname)
@@ -18,7 +19,11 @@ export const normalizePathForMatching = (pathname) => {
   } catch {
     // Not decodable: keep the raw spelling.
   }
-  return path.replace(/\/{2,}/g, '/').toLowerCase()
+  return path
+    .replace(/\\/g, '/')
+    .replace(/;[^/]*/g, '')
+    .replace(/\/{2,}/g, '/')
+    .toLowerCase()
 }
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -31,20 +36,24 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // matches the rest of that segment only ("/customer/v*/carts"). "*" never
 // crosses a "/" and a whole-segment "*" never matches an empty segment. Every
 // other character is literal. Like a prefix, a pattern matches the path itself
-// and anything below it. Returns an anchored matcher for normalized paths.
+// and anything below it: "/api" covers "/api" and "/api/users", while "/api/*"
+// covers only what is below "/api". A match also ends at ".", whitespace or a
+// NUL, because origins commonly route "/checkout.json" or "/checkout%20" to
+// "/checkout". Returns an anchored matcher for normalized paths.
 const compilePathPattern = (pattern) => {
   const segments = normalizePathForMatching(pattern)
     .split('/')
     .map((segment) => (segment === '*' ? '[^/]+' : segment.split('*').map(escapeRegExp).join('[^/]*')))
-  return new RegExp(`^${segments.join('/')}(?:[/?]|$)`)
+  return new RegExp(`^${segments.join('/')}(?:[/?.\\s\\0]|$)`)
 }
 
 /**
  * Parse `APPROOV_PROTECTED_PATHS`, a comma-separated list of path patterns.
  *
  * Unset or blank keeps the default: every request reaching the Worker is
- * checked. An entry without a leading `/` would never match, so it is a
- * configuration error rather than a silently unprotected path.
+ * checked. An entry without a leading `/` would never match, and an entry with
+ * a trailing `/` would match only that exact path and nothing below it, so
+ * both are configuration errors rather than silently unprotected paths.
  *
  * @param {*} env Worker environment bindings.
  * @param {String[]} errors Mutable configuration error list.
@@ -58,6 +67,10 @@ export const parseProtectedPaths = (env, errors) => {
   const invalid = patterns.filter((pattern) => !pattern.startsWith('/'))
   if (invalid.length > 0) {
     errors.push('env.APPROOV_PROTECTED_PATHS entries must start with "/"')
+    return null
+  }
+  if (patterns.some((pattern) => pattern.endsWith('/'))) {
+    errors.push('env.APPROOV_PROTECTED_PATHS entries must not end with "/": use "/api" for a path and everything below it, or "/api/*" for only what is below it')
     return null
   }
   return Object.freeze(patterns.map(compilePathPattern))

@@ -57,11 +57,14 @@ The upstream is decided in exactly one place — `src/http/proxy.js`:
 
 ```javascript
 url.protocol = 'https:'
-url.host = ctx.apiHost      // env.API_DOMAIN
-url.port = String(ctx.apiPort)
+if (!ctx.apiPassthrough) {
+  url.host = ctx.apiHost      // env.API_DOMAIN
+  url.port = String(ctx.apiPort)
+}
 ```
 
-One deployment, one rewrite target. What differs between topologies is *what that target means*:
+With `API_DOMAIN`, one deployment has one rewrite target. With `API_PASSTHROUGH` the incoming
+host and port are kept (see [Protecting several API hostnames](#protecting-several-api-hostnames)). What differs between topologies is *what that target means*:
 
 | Topology | The public hostname resolves to | Upstream reached by | Origin knowledge lives in |
 |---|---|---|---|
@@ -189,9 +192,10 @@ Two constraints are load-bearing:
 
 **Use for:** production on an existing Cloudflare-proxied API hostname.
 
-**Why it is preferred:** the route becomes the only public path to that origin, so trusted
-ingress comes from the topology itself rather than from an extra control you have to add and
-maintain. You still need to close direct access to origin IPs and alternate hostnames.
+**Why it is preferred:** the route covers the public hostname itself, so no second public
+hostname exists that could skip the Worker, and no gateway credential has to be added and
+maintained. Trusted ingress is complete only once direct access to origin IPs and alternate
+hostnames is closed as well.
 
 Every annotation-mode topology also requires cache bypass before backend enforcement.
 Outbound `cache: 'no-store'` does not guarantee bypass of another Cloudflare zone's cache.
@@ -206,8 +210,8 @@ Configure the applicable Cache Rules and origin policy, then exercise the
 | Does the app call a hostname in your Cloudflare zone? | No | Yes | Yes |
 | Can API Shield / WAF apply? | No | Yes | Yes |
 | Must `API_DOMAIN` differ from the incoming hostname? | Yes | Yes | No — it is the same hostname |
-| Does the topology itself guarantee trusted ingress? | No | No | Yes |
-| Production ready? | No | With an added edge-to-origin control | Yes |
+| Is the Worker on the only public path to the origin? | No | No | Yes, once direct access to origin IPs and alternate hostnames is closed |
+| Production ready? | No | With an added edge-to-origin control | Yes, with the origin closed as above |
 
 ## Protecting several API hostnames
 
@@ -220,12 +224,10 @@ also *forward* them from one deployment depends on whether they share an origin:
 | Several hostnames, each with its own origin | **One**, with `API_PASSTHROUGH = "true"`. Without it, one per hostname, because `API_DOMAIN` is a single deployment-wide value. |
 | Several hostnames needing different Approov policy | **One per hostname**, regardless of origins — `[vars]` cannot vary per hostname. |
 
-The second row is the case tracked in
-[issue #19](https://github.com/approov/approov-verifier-cloudflare-worker/issues/19): three
-hostnames in one zone, each with its own origin DNS record, which before pass-through needed three
-near-identical Workers differing only in route pattern and `API_DOMAIN`. The cost was not just
-duplicated configuration — it was N uploads and N rotations of the same `APPROOV_BACKEND_CONFIG`
-secret.
+The second row is the common multi-hostname case: for example three hostnames in one zone, each
+with its own origin DNS record. Without pass-through that takes three near-identical Workers
+differing only in route pattern and `API_DOMAIN`, and with them three uploads and three rotations
+of the same `APPROOV_BACKEND_CONFIG` secret.
 
 Setting `API_PASSTHROUGH = "true"` makes topology C's pass-through behaviour explicit instead of
 hardcoded, so one deployment serves every route:

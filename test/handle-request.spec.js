@@ -23,6 +23,40 @@ afterEach(() => {
 })
 
 describe('handleRequest fail-closed behaviour', () => {
+  it('returns 500 and logs which hostname has no usable Approov policy', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await handleRequest(new Request('http://unregistered.example/x'), makeEnv())
+
+    expect(response.status).toBe(500)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(errors).toHaveBeenCalledWith('approov: unable to resolve incoming API policy', {
+      reason: 'incoming API domain "unregistered.example" is not present in APPROOV_BACKEND_CONFIG.apis'
+    })
+  })
+
+  it('returns 502 with a log line when the upstream cannot be reached', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('connect failed for https://upstream.example.com/x?secret=1') }))
+    evaluateApproovToken.mockResolvedValue({ tokenResult: 'PASS', bindingResult: 'DISABLED', messageSigningResult: 'NOT_REQUIRED' })
+    const writeDataPoint = vi.fn()
+
+    const response = await handleRequest(
+      new Request('http://worker.local/x'),
+      makeEnv({ APPROOV_ANALYTICS_ENABLED: 'true', APPROOV_ANALYTICS: { writeDataPoint } })
+    )
+
+    expect(response.status).toBe(502)
+    expect(await response.text()).toBe('Bad Gateway')
+    expect(errors).toHaveBeenCalledWith('approov: upstream request failed', { status: 502 })
+    expect(JSON.stringify(errors.mock.calls)).not.toContain('secret=1')
+    const point = writeDataPoint.mock.calls[0][0]
+    expect(point.blobs[2]).toBe('error')
+    expect(point.doubles.slice(0, 2)).toEqual([502, -1])
+  })
+
   it('uses the configured block response when evaluation throws in block mode', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(console, 'log').mockImplementation(() => {})

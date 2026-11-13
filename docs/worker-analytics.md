@@ -1,10 +1,10 @@
 # Approov Worker analytics
 
-Version 3 · 29 October 2026
+Summary schema version 3.
 
-Add one safe summary for each request. Reuse the results the worker already produces. Record token verification, attestation, message signing, and available plugin results. Include token binding and the worker’s action so operators can understand why a request was forwarded or rejected.
+The Worker can emit one safe summary for each request. The summary reuses the results the Worker already produces: token verification, attestation, token binding, message signing, available plugin results, and the Worker's action, so operators can see why a request was forwarded or rejected.
 
-The implementation consists of a small analytics module, a final emission step in the request handler, and one optional summary function per plugin. The summary is independent of enforcement and annotation.
+Analytics is opt-in and independent of enforcement and annotation. It consists of a small analytics module ([`src/analytics.js`](../src/analytics.js)), a final emission step in the request handler, and one optional summary function per plugin. To switch it on, see [Enable analytics](#enable-analytics).
 
 **What the summary contains.** Existing verification and plugin status values are reused wherever possible. Structured records include `event: "approov.request"`.
 
@@ -40,7 +40,7 @@ A signed FAIL token is authentic but represents failed attestation. An invalid s
 
 The collector uses the completed token verifier result for authenticity. A later evaluation error must remain visible in `validation` without erasing that evidence. Attestation remains available even if ARC decoding is unavailable.
 
-**Plugins supply their own safe summary.** Add an optional synchronous `summarize(result)` function to the plugin export. It receives only that plugin’s existing result and returns a small object for logging. It must not modify the result or perform I/O.
+**Plugins supply their own safe summary.** A plugin may export an optional synchronous `summarize(result)` function. It receives only that plugin’s existing result and returns a small object for logging. It must not modify the result or perform I/O.
 
 For example, a plugin can return only its status:
 
@@ -61,7 +61,7 @@ The collector accepts plain objects, finite scalar values, and arrays with at mo
 | ARC | Decode status and decoded property labels | Encoded ARC and secrets |
 | Future plugin | Small summary chosen by its author | Complete result dumps |
 
-ARC is a standard diagnostic when installed. Its summary reports `DECODED` with the existing property array, or `UNAVAILABLE` when the result is null. The array retains its existing leading `pass` or `fail` marker. The current null result does not identify the precise decode failure, so detailed decode reasons are deferred.
+ARC is a standard diagnostic when installed. Its summary reports `DECODED` with the existing property array, or `UNAVAILABLE` when the result is null. The array retains its existing leading `pass` or `fail` marker. The current null result does not identify the precise decode failure, so the summary carries no decode reason.
 
 ARC properties provide attestation context. They are not necessarily the exact policy rejection reasons, and they can appear on PASS tokens too. [Approov ARC documentation](https://docs.approov.io/app-integration/frontend/attestation/)
 
@@ -89,22 +89,22 @@ A shortened example is:
 }
 ```
 
-**Where the summary goes.** Structured Workers Logs provide the first useful interface, including decoded ARC and other plugin results. An optional Analytics Engine binding writes one fixed record per request for core outcome charts. Both destinations use the same safe summary. Plugin details remain in structured logs initially. A separate plugin metrics dataset, generic fact rows, and custom exporters are deferred.
+**Where the summary goes.** Structured Workers Logs carry the full summary, including decoded ARC and other plugin results. An optional Analytics Engine binding writes one fixed record per request for core outcome charts. Both destinations use the same safe summary. Plugin details appear only in structured logs; there is no plugin metrics dataset and no built-in external exporter.
 
-Analytics is opt-in. Logging and Analytics Engine have separate enable switches, both defaulting to false. Analytics Engine also needs its dataset binding. There is no application sampling setting initially. Analytics Engine queries account for Cloudflare sampling through `_sample_interval`. Customer-configured Workers Logs sampling is independent. [Analytics Engine sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/)
+Analytics is opt-in. Logging and Analytics Engine have separate enable switches, both defaulting to false. Analytics Engine also needs its dataset binding. There is no application sampling setting. Analytics Engine queries account for Cloudflare sampling through `_sample_interval`. Customer-configured Workers Logs sampling is independent. [Analytics Engine sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/)
 
 The handler emits once from a finalizer covering early returns and exceptions. Analytics failures cannot change enforcement, trigger another upstream request, or replace the response. No request or response body is read for analytics. No external HTTP export runs on the request path.
 
-**Safe logging applies to existing logs too.** Do not log tokens, encoded ARC, credentials, binding hashes, complete claims, bodies, or full request URLs. Replace existing debug dumps of those values with safe status summaries. Debug mode must follow the same rule. Platform-generated logs have separate metadata controls.
+**Safe logging applies to every Worker log.** The Worker does not log tokens, encoded ARC, credentials, binding hashes, complete claims, bodies, or full request URLs, and debug mode follows the same rule. Platform-generated logs have separate metadata controls.
 
-The implementation tests establish four things:
+The test suite establishes four things:
 
 - Missing, invalid, expired, pass-key, and fail-key tokens produce distinct summaries.
 - Plugin summaries work with any set of installed plugins, or none.
 - Sensitive fixture values never appear in logs, including debug output.
 - Disabled analytics, missing bindings, and throwing emitters preserve existing request behavior.
 
-Detailed ARC error reporting and aggregate charts for arbitrary plugin fields are deferred.
+Detailed ARC error reporting and aggregate charts for arbitrary plugin fields are not provided.
 
 ## Enable analytics
 
@@ -123,6 +123,8 @@ Add this top-level binding outside the `[vars]` table:
 binding = "APPROOV_ANALYTICS"
 dataset = "approov_worker_v2"
 ```
+
+The dataset name is yours to choose and is independent of the summary schema version, which is recorded in `blob1`. The examples here use `approov_worker_v2`.
 
 Enable Analytics Engine for the account in the Cloudflare dashboard before the first deployment. A disabled account rejects the upload with code `10089`.
 
@@ -153,8 +155,8 @@ Named Wrangler environments need their own dataset bindings and analytics variab
 
 One request produces at most one native data point. Plugin details, individual signatures, and configured actions remain in structured logs.
 Version 3 appends the client token-fetch status in `blob11`. The first ten columns keep their positions.
-Issue #47 adds `either` to the signing-mode vocabulary without changing columns or the schema version.
-Update consumers with fixed mode allowlists. In compatibility mode, two key claims now report `either`; explicit `both` still reports `both`.
+The signing-mode vocabulary includes `either`. Consumers with a fixed mode allowlist must accept it:
+when the requirement is unset, a token with two key claims reports `either`; an explicit `both` reports `both`.
 
 | Column | Field | Values |
 |---|---|---|
