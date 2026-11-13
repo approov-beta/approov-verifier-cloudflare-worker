@@ -14,7 +14,7 @@ They are the middle layer of a test pyramid:
 
 | Layer | What | Where |
 |-------|------|-------|
-| **L1** | All logic + edge cases, synthetic tokens, in-process | `test/unit.spec.js`, `plugins/**/*.spec.js` |
+| **L1** | All logic + edge cases, synthetic tokens, in-process | `test/*.spec.js`, `plugins/**/*.spec.js` |
 | **L2** | Deployed worker + synthetic HTTP matrix (this folder) | `test/e2e/` |
 | **L3** | Real device + Approov SDK | Not part of this repository |
 

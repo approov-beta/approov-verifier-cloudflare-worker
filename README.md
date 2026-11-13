@@ -1089,30 +1089,44 @@ The worker is split into focused modules so each concern is easy to review and m
 
 | File | Responsibility |
 |---|---|
-| [`src/index.js`](src/index.js) | Minimal Cloudflare `fetch` entrypoint. |
+| [`src/index.js`](src/index.js) | Cloudflare `fetch` entrypoint; validates the bindings when the Worker starts. |
 | [`src/worker/handle-request.js`](src/worker/handle-request.js) | Top-level request lifecycle and enforcement/annotation decisions. |
 
 **Configuration & shared primitives**
 
 | File | Responsibility |
 |---|---|
-| [`src/config/context.js`](src/config/context.js) | Environment parsing, validation, and the immutable runtime context. |
+| [`src/config/schema.mjs`](src/config/schema.mjs) | Variable schema and policy rules shared by the Worker and the Wrangler preflight. |
+| [`src/config/context.js`](src/config/context.js) | Environment parsing, key loading, per-hostname policy, and the immutable runtime context. |
+| [`src/config/protected-paths.js`](src/config/protected-paths.js) | `APPROOV_PROTECTED_PATHS` parsing and path matching. |
 | [`src/constants.js`](src/constants.js) | Outcome enums and configuration constants. |
 | [`src/utils/text.js`](src/utils/text.js) | Text/boolean parsing helpers. |
 | [`src/utils/crypto.js`](src/utils/crypto.js) | Hashing and strict base64/base64url decoding. |
 | [`src/utils/logging.js`](src/utils/logging.js) | Centralized logging helpers. |
-| [`src/vendor/http-message-signatures.js`](src/vendor/http-message-signatures.js) | Vendored module interop resolution. |
+| [`src/utils/errors.js`](src/utils/errors.js) | Error-message normalization. |
 
 **Approov verification**
 
 | File | Responsibility |
 |---|---|
+| [`src/approov/evaluate.js`](src/approov/evaluate.js) | Composed per-request evaluation flow. |
 | [`src/approov/token.js`](src/approov/token.js) | Token verification and JWT error classification. |
 | [`src/approov/binding.js`](src/approov/binding.js) | Token binding verification. |
 | [`src/approov/message-signing.js`](src/approov/message-signing.js) | Installation/account message-signature verification. |
-| [`src/approov/evaluate.js`](src/approov/evaluate.js) | Composed per-request evaluation flow. |
+| [`src/approov/account-key.js`](src/approov/account-key.js) | Device key derivation for account signatures. |
+| [`src/approov/client-status.js`](src/approov/client-status.js) | Filtering of the client-supplied status header. |
+| [`src/approov/policy.js`](src/approov/policy.js) | Maps verification results to layer failures and the block decision. |
+| [`src/vendor/http-message-signatures.js`](src/vendor/http-message-signatures.js) | Entry to the vendored RFC 9421 bundle ([build guide](vendor/README.md)). |
+
+**Plugins & analytics**
+
+| File | Responsibility |
+|---|---|
 | [`src/plugin-host.js`](src/plugin-host.js) | Drop-in plugin registry loader and lifecycle runner. |
+| [`src/plugin-kit.js`](src/plugin-kit.js) | The stable API surface plugins may import. |
+| `src/plugins.generated.js` | Build-time plugin registry written by `scripts/generate-plugins.mjs`. |
 | [`plugins/arc/`](plugins/arc/) | ARC decoding plugin. |
+| [`src/analytics.js`](src/analytics.js) | Optional per-request summary for Workers Logs and Analytics Engine. |
 
 **HTTP proxy**
 
@@ -1120,23 +1134,35 @@ The worker is split into focused modules so each concern is easy to review and m
 |---|---|
 | [`src/http/proxy.js`](src/http/proxy.js) | Rewrites the incoming request to target the upstream API. |
 
+**Tooling**
+
+| File | Responsibility |
+|---|---|
+| [`scripts/wrangler.mjs`](scripts/wrangler.mjs), [`scripts/preflight.mjs`](scripts/preflight.mjs) | Validate the selected configuration, then run Wrangler (`npm start`, `npm run deploy`). |
+| [`scripts/validate-config.js`](scripts/validate-config.js) | `npm run validate:config`. |
+| [`scripts/audit.mjs`](scripts/audit.mjs) | Dependency audit gate. |
+| [`scripts/build-message-signatures.mjs`](scripts/build-message-signatures.mjs) | Rebuilds or checks the vendored message-signature bundle. |
+
 ---
 
 ## Testing
 
 ```shell
-npm test      # Workers tests with full coverage
-npm run test:preflight # configuration and actual startup tests
-npm run lint  # eslint
+npm test                # Workers runtime tests; fails below 100% coverage
+npm run test:preflight  # configuration preflight, startup, and documentation-example tests
+npm run test:audit      # dependency audit policy and lint policy tests
+npm run lint            # eslint
+npm run audit           # dependency audit gate
+npm run check:vendor    # vendored bundle matches its sources
 ```
 
-Run `npm run audit` for the CI dependency gate and `npm run test:audit` for its policy tests.
-The gate includes all severities and development dependencies and has no exceptions; see
+`npm test` runs every `test/*.spec.js` suite and each plugin's `plugins/<name>/*.spec.js` in the
+Workers runtime. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs all of the
+commands above plus a `wrangler deploy --dry-run` build on every push and on pull requests to `main`.
+The audit gate includes all severities and development dependencies and has no exceptions; see
 [the audit policy](docs/dependency-audit.md).
 
-The suite in [`test/unit.spec.js`](test/unit.spec.js) is also enforced in CI
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), which runs the tests and a
-`wrangler deploy --dry-run` build check on every push and PR to `main`.
+The deployed end-to-end matrix is separate and manual; see [`test/e2e/README.md`](test/e2e/README.md).
 
 <details>
 <summary><strong>Token outcomes (default <code>token</code> strategy)</strong></summary>
