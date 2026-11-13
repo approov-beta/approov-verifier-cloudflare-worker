@@ -601,7 +601,7 @@ Block mode requires a backend ingress that trusts the Worker; result-header midd
 
 `APPROOV_LOGGING_ENABLED="true"` emits one structured summary per request in either mode.
 `APPROOV_DEBUG` controls additional diagnostics. Errors and warnings remain enabled.
-See [Worker analytics](docs/worker-analytics-proposal.md).
+See [Worker analytics](docs/worker-analytics.md).
 
 ### Configuration validation
 
@@ -643,7 +643,7 @@ JSON** with these fields:
 A request with `clientStatus: success` and no valid token still fails token verification.
 Unknown, repeated, empty, and oversized status values produce `invalid`. The Worker does not log their raw values.
 Structured request logs also contain `clientStatus`. Analytics Engine schema version 3 adds this value in `blob11`.
-Before rollout, update version-specific log and analytics consumers. See the [analytics migration notes](docs/worker-analytics-proposal.md#analytics-engine-columns).
+Before rollout, update version-specific log and analytics consumers. See the [analytics migration notes](docs/worker-analytics.md#analytics-engine-columns).
 
 Decode the result like this:
 
@@ -1056,7 +1056,7 @@ Set `APPROOV_DEBUG = "true"` to emit detailed logs covering:
 
 Debug logs exclude tokens, encoded ARC, decoded claims, binding hashes, bodies,
 full URLs, and raw exception text. Decoded ARC properties and other safe plugin
-details are available through opt-in [Worker analytics](docs/worker-analytics-proposal.md).
+details are available through opt-in [Worker analytics](docs/worker-analytics.md).
 
 Stream them with:
 

@@ -97,7 +97,7 @@ APPROOV_MESSAGE_SIGNING_ACTION = "block"
 Each action is `block` or `continue`. Both run checks. `continue` forwards failures; `block` rejects them.
 Block mode never forwards `Approov-Result`. Remove result-header enforcement from this backend path; retain trusted ingress and normal authorization.
 
-Logging is independent of these actions. Analytics Engine uses `APPROOV_ANALYTICS_ENABLED`; use a new v2 dataset and [updated queries](worker-analytics-proposal.md).
+Logging is independent of these actions. Analytics Engine uses `APPROOV_ANALYTICS_ENABLED`; use a new v2 dataset and [updated queries](worker-analytics.md).
 
 ## 5. Verify before cutover
 

@@ -133,7 +133,7 @@ credentials, claims, bodies, or exception text.
 The host isolates hook errors and rejects unsupported or oversized summaries.
 Legacy plugins work without this hook. Plugin summaries enter structured logs;
 they do not change `Approov-Result` or the core Analytics Engine columns.
-See [Worker analytics](worker-analytics-proposal.md) for limits and configuration.
+See [Worker analytics](worker-analytics.md) for limits and configuration.
 
 ## Tests
 
