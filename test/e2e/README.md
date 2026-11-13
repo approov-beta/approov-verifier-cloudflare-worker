@@ -36,7 +36,7 @@ They are the middle layer of a test pyramid:
   `none`, `arc` only, all. This exercises the drop-in
   discovery/wiring flow itself.
 - **Runtime config** (via `--var` at deploy): annotate, block, continue, mixed actions,
-  token binding, and automatic install/account/both signatures.
+  token binding, and install, account, either and both signature requirements.
   Block mode checks that forwarded requests contain no `Approov-Result` header.
 
 ## Running it

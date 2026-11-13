@@ -131,7 +131,7 @@ Malformed messages and unsupported versions produce no export. Changes to the su
 ```javascript
 const enums = {
   mode: ['annotate', 'block', 'UNAVAILABLE'],
-  action: ['block', 'forward', 'echo', 'error'],
+  action: ['block', 'forward', 'unprotected', 'echo', 'error'],
   presence: ['MISSING', 'EMPTY', 'PRESENT', 'NOT_CHECKED'],
   verification: [
     'VERIFIED', 'NOT_CHECKED', 'ERROR', 'EXPIRED', 'INVALID_AUD', 'INVALID_ALG',
