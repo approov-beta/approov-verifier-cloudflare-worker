@@ -51,6 +51,7 @@ request in annotation mode, or applies explicit protection actions in block mode
 - [Plugins](#plugins)
 - [Custom Deployment Scenarios](#custom-deployment-scenarios)
 - [Debugging](#debugging)
+- [Troubleshooting](#troubleshooting)
 - [Codebase Structure](#codebase-structure)
 - [Testing](#testing)
 - [Outcome Reference](#outcome-reference)
@@ -1042,6 +1043,20 @@ Stream them with:
 ```shell
 npx wrangler tail --format pretty
 ```
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Every request returns `500 Internal Server Error` | The incoming hostname has no usable Approov policy. The Worker logs `approov: unable to resolve incoming API policy` with a `reason` naming the hostname and what is missing: it is absent from `apis`, has token checking disabled, or has no `kid` while `APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET` is `false`. Register the hostname ([step 3](#3-register-the-gateway-domain-with-approov)), export the configuration again and upload it. Locally, call the registered hostname with `curl --resolve` rather than `localhost`. |
+| `npm start` or `npm run deploy` stops with `Invalid Approov configuration` | Preflight lists each invalid or unknown variable by name. Fix the listed entries in `wrangler.toml` or `.dev.vars`. |
+| Cloudflare rejects an upload with validation error `10021` | A deployed binding, usually the `APPROOV_BACKEND_CONFIG` secret, is missing or invalid. Upload the secret again from a fresh export. |
+| Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Export and upload the configuration again after any keyset or API change. |
+| `508 Loop Detected` | `API_PASSTHROUGH` is enabled outside the Worker Route topology, or `global_fetch_strictly_public` is on. See [deployment topologies](docs/deployment-topologies.md). |
+
+Read the Worker's log lines with `npx wrangler tail --format pretty`.
 
 ---
 

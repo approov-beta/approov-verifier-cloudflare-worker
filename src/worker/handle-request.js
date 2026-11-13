@@ -6,6 +6,7 @@ import { rewriteApiRequest } from '../http/proxy.js'
 import { createAnalytics } from '../analytics.js'
 import { assessProtection, shouldBlock } from '../approov/policy.js'
 import { logDebug, logError } from '../utils/logging.js'
+import { errorMessage } from '../utils/errors.js'
 
 // Header names that must never be reflected verbatim in echo-mode output.
 const ALWAYS_REDACTED_ECHO_HEADERS = Object.freeze(['authorization', 'cookie', 'set-cookie'])
@@ -88,7 +89,9 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
   try {
     apiPolicy = resolveApiPolicy(ctx, new URL(request.url).hostname)
   } catch (err) {
-    logError('unable to resolve incoming API policy')
+    // The reason names only the incoming hostname and the unmet requirement,
+    // never key material, and is what an operator needs to fix the 500.
+    logError('unable to resolve incoming API policy', { reason: errorMessage(err) })
     return respond(new Response('Internal Server Error', { status: 500 }), 'error')
   }
 
