@@ -173,6 +173,7 @@ must verify. See [message signing checks](#message-signing-checks) for the full 
   The account must be configured to use an ECDSA or RSA key pair for signing and verifying
   tokens — see [Managing Key Sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets).
 - A Cloudflare account with a Worker entitlement.
+- `curl` and [`jq`](https://jqlang.org/) for the quickstart's test commands.
 - Optionally, the ability to grant [Wrangler](https://developers.cloudflare.com/workers/wrangler/)
   access to your Cloudflare account if you intend to deploy via the `wrangler` CLI.
 
@@ -245,8 +246,8 @@ continuing:
   ],
   "defaultPassJWKS": {
     "keys": [
-      { "alg": "A256GCMKW", "k": "ObfuscatedSymmetricKey",  "kid": "default_A256GCMKW", "kty": "oct", "use": "enc" },
-      { "alg": "HS256",     "k": "ObfuscatedSymmetricKey2", "kid": "default_HS256",      "kty": "oct", "use": "sig" }
+      { "alg": "A256GCMKW", "k": "ObfuscatedSymmetricKey",  "kid": "_A256GCMKW", "kty": "oct", "use": "enc" },
+      { "alg": "HS256",     "k": "ObfuscatedSymmetricKey2", "kid": "_HS256",     "kty": "oct", "use": "sig" }
     ]
   },
   "passJWKS": {
@@ -366,9 +367,12 @@ Cloudflare [secrets](https://developers.cloudflare.com/workers/configuration/sec
 [dotenv](https://hexdocs.pm/dotenvy/dotenv-file-format.html) syntax):
 
 ```shell
-cp .dev.vars.example .dev.vars
-# then edit .dev.vars and paste your real key material
+printf "APPROOV_BACKEND_CONFIG='%s'\n" "$(jq -c . approov-config.json)" > .dev.vars
 ```
+
+The dotenv format needs the whole JSON document on **one line**, which is what `jq -c` produces
+from the export. Add any optional settings from [`.dev.vars.example`](.dev.vars.example) below
+that line. `.dev.vars` is git-ignored; never commit it.
 
 Run the worker:
 
