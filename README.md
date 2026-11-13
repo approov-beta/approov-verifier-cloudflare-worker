@@ -954,17 +954,12 @@ The verified `did` claim must contain canonical, padded standard base64 for exac
 Missing or malformed values produce `INVALID_DEVICE_ID_CLAIM` for the account signature.
 Unpadded values, base64url, whitespace, and nonzero padding bits fail verification.
 The Worker derives no key from an untrusted token. Installation-only tokens do not require `did`.
-The fixed fallback DeviceID uses the same derivation. Its shared-key and device-transition limits remain in
-[#902](https://github.com/approov/core-project-approov/issues/902).
+The fixed fallback DeviceID uses the same derivation, so every device that reports it shares one key.
 
 **Account-signing compatibility:** the Worker accepts device-derived signatures only. It does not try the raw account secret as a verification key.
-The attester version determines this format, independently of the SDK version.
-Coordinate the Worker and attester rollout with account-signing customers before release.
-An attester or failover service that supplies raw-secret keys produces signatures that this Worker rejects.
-See [#661](https://github.com/approov/core-project-approov/issues/661),
-the [release tracker](https://github.com/approov/core-project-approov/issues/883), and the separate
-[failover change #904](https://github.com/approov/core-project-approov/issues/904).
-This change covers RFC 9421 account signatures.
+The Approov service version, not the SDK version, determines which key format an app receives.
+A request signed with the raw account secret is rejected. If account signatures fail for every device after you enable this check,
+contact [Approov support](https://approov.io/info/contact) to confirm that your account issues device-derived keys.
 
 Optional tuning values:
 

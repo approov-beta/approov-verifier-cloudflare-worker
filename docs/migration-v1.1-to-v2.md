@@ -1,6 +1,6 @@
 # Migrate from v1.1 to v2
 
-This guide compares the [v1.1 review-fixes branch](https://github.com/CriticalBlue/internal-approov-cloudflare-worker/tree/feature/review-fixes), reviewed at `a0c4c266`, with v2.
+This guide lists what changes when you move a deployment from version 1.1 of the Worker to version 2.
 
 ## Configuration comparison
 
@@ -81,7 +81,7 @@ Results include `signatures.install` and `signatures.account` inside `messageSig
 The reported mode is `either` for the two-claim compatibility case. Log and dashboard consumers must accept this additional value.
 Deployments that relied on both claims requiring both signatures must now set `APPROOV_MESSAGE_SIGNING_REQUIRED = "both"`.
 
-For account signing, retain the separate `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET` until the backend export bug is fixed.
+For account signing, retain the separate `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET` until the Approov backend export includes the message-signing key.
 Add it to `[secrets].required` when used. The expected account key ID remains optional.
 
 ## 4. Switch to block mode when ready

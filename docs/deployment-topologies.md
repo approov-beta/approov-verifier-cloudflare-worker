@@ -224,12 +224,10 @@ also *forward* them from one deployment depends on whether they share an origin:
 | Several hostnames, each with its own origin | **One**, with `API_PASSTHROUGH = "true"`. Without it, one per hostname, because `API_DOMAIN` is a single deployment-wide value. |
 | Several hostnames needing different Approov policy | **One per hostname**, regardless of origins — `[vars]` cannot vary per hostname. |
 
-The second row is the case tracked in
-[issue #19](https://github.com/approov/approov-verifier-cloudflare-worker/issues/19): three
-hostnames in one zone, each with its own origin DNS record, which before pass-through needed three
-near-identical Workers differing only in route pattern and `API_DOMAIN`. The cost was not just
-duplicated configuration — it was N uploads and N rotations of the same `APPROOV_BACKEND_CONFIG`
-secret.
+The second row is the common multi-hostname case: for example three hostnames in one zone, each
+with its own origin DNS record. Without pass-through that takes three near-identical Workers
+differing only in route pattern and `API_DOMAIN`, and with them three uploads and three rotations
+of the same `APPROOV_BACKEND_CONFIG` secret.
 
 Setting `API_PASSTHROUGH = "true"` makes topology C's pass-through behaviour explicit instead of
 hardcoded, so one deployment serves every route:

@@ -153,8 +153,8 @@ Named Wrangler environments need their own dataset bindings and analytics variab
 
 One request produces at most one native data point. Plugin details, individual signatures, and configured actions remain in structured logs.
 Version 3 appends the client token-fetch status in `blob11`. The first ten columns keep their positions.
-Issue #47 adds `either` to the signing-mode vocabulary without changing columns or the schema version.
-Update consumers with fixed mode allowlists. In compatibility mode, two key claims now report `either`; explicit `both` still reports `both`.
+The signing-mode vocabulary includes `either`. Consumers with a fixed mode allowlist must accept it:
+when the requirement is unset, a token with two key claims reports `either`; an explicit `both` reports `both`.
 
 | Column | Field | Values |
 |---|---|---|

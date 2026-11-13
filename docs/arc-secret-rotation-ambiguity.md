@@ -16,8 +16,9 @@ The issue is not specific to Cloudflare Workers or JWT verification. It can affe
 2. accepts multiple ARC secrets during a rotation window; and
 3. treats the first structurally successful decode as authoritative.
 
-This report demonstrates the issue in the Cloudflare Worker implementation. It does not establish
-that every other Approov backend integration uses the same candidate-selection strategy.
+This note demonstrates the ambiguity with this Worker's decoder and explains the selection rule
+the ARC plugin applies. It says nothing about which candidate-selection strategy any other backend
+integration uses.
 
 ## Root cause
 
@@ -36,15 +37,15 @@ one side of a rotation window can be assigned the wrong ARC interpretation by th
 
 ## Exact reproduction
 
-The following synthetic values reproduce the issue with the decoder checked out at commit
-`35cefeb8fa765205bef2ced3a326e4cd54667064`:
+The following synthetic values reproduce the ambiguity with the decoder in
+[`plugins/arc/decode.js`](../plugins/arc/decode.js):
 
 - Current ARC secret: `current-arc-secret`
 - Pending ARC secret: `pending-arc-secret`
 - ARC claim: `AAAAH2BOY3`
 - JWT signing result: `PASS`
 
-Import the real checked-out decoder and decode the same claim with both configured secrets:
+Import the decoder and decode the same claim with both configured secrets:
 
 ```js
 import { expect, it } from 'vitest'
@@ -81,8 +82,9 @@ Run the focused test with:
 npx vitest run plugins/arc/arc.spec.js
 ```
 
-To reproduce the original Worker-level behavior, put `AAAAH2BOY3` in an ES256 token signed by the
-configured pass key, then configure the two ARC secrets in this order:
+To see the effect on a backend that accepts the first structurally successful decode, put
+`AAAAH2BOY3` in an ES256 token signed by the configured pass key, then configure the two ARC
+secrets in this order:
 
 ```json
 {
@@ -92,8 +94,8 @@ configured pass key, then configure the two ARC secrets in this order:
 }
 ```
 
-On the vulnerable implementation, token verification returns `PASS`, but the ARC plugin stops after
-the structurally successful current-secret decode and returns:
+Token verification returns `PASS`, but a first-match decoder stops after the structurally
+successful current-secret decode and returns:
 
 ```json
 {
@@ -134,8 +136,8 @@ does not fully resolve secret ambiguity.
 The impact depends on how a deployment consumes ARC properties:
 
 - In this Worker, ARC is an annotation and cannot change core JWT, binding, or message-signing
-  enforcement. The core token result remains trustworthy, but the emitted ARC properties can be
-  wrong on the vulnerable implementation.
+  enforcement. The core token result is unaffected, and the selection rule below keeps a wrong
+  interpretation out of `arcProperties`.
 - A downstream API that uses ARC properties for an explicit deny rule could incorrectly allow or
   deny a legitimate request if it trusts a misdecoded annotation.
 - Logging, alerting, risk scoring, and incident analysis can attribute incorrect device or app
@@ -160,7 +162,7 @@ should use a conservative selection rule:
 6. If no interpretation remains, or multiple different interpretations remain, return no ARC
    annotation and log the condition without exposing secrets.
 
-The Worker now follows this rule. Because ARC is annotation-only here, returning
+The Worker follows this rule. Because ARC is annotation-only here, returning
 `arcProperties: null` on unresolved ambiguity is safer than emitting confidently incorrect flags.
 
 If another backend requires ARC properties for mandatory enforcement and cannot tolerate an
