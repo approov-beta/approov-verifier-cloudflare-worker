@@ -1131,7 +1131,7 @@ The suite in [`test/unit.spec.js`](test/unit.spec.js) is also enforced in CI
 | Unknown signer | `INVALID_SIG` | `DISABLED` |
 | Audience mismatch | `INVALID_AUD` | `DISABLED` |
 | Unsupported JWT algorithm | `INVALID_ALG` | `DISABLED` |
-| Malformed JWT | `MALFORMED` | `DISABLED` |
+| Malformed JWT, or a signed token without a numeric `exp` claim | `MALFORMED` | `DISABLED` |
 | Unparsable JWT | `UNPARSABLE` | `DISABLED` |
 | Expired token | `EXPIRED` | `DISABLED` |
 

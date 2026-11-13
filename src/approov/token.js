@@ -2,6 +2,15 @@ import jwt from 'jsonwebtoken'
 import { APPROOV_TOKEN_OUTCOMES, APPROOV_PERMITTED_ALGORITHMS } from '../constants.js'
 import { logInfo, logWarn } from '../utils/logging.js'
 
+// jsonwebtoken enforces `exp` only when the claim is present, so a signed
+// token without it would otherwise never expire.
+class MissingExpiryError extends Error {
+  constructor () {
+    super('exp claim is required')
+    this.name = 'MissingExpiryError'
+  }
+}
+
 /**
  * Normalize jsonwebtoken verification exceptions to stable worker outcomes.
  *
@@ -17,6 +26,10 @@ export const classifyJwtError = (err) => {
 
   if (name === 'TokenExpiredError') {
     return { kind: APPROOV_TOKEN_OUTCOMES.EXPIRED, name, message }
+  }
+
+  if (name === 'MissingExpiryError') {
+    return { kind: APPROOV_TOKEN_OUTCOMES.MALFORMED, name, message }
   }
 
   if (name === 'JsonWebTokenError') {
@@ -185,7 +198,9 @@ export const validateToken = async (ctx, token, apiPolicy) => {
   const verifyWithCandidate = (verifier) => {
     const options = { algorithms: [verifier.alg] }
     if (audience) options.audience = audience
-    return jwt.verify(token, verifier.key, options)
+    const payload = jwt.verify(token, verifier.key, options)
+    if (typeof payload.exp !== 'number') throw new MissingExpiryError()
+    return payload
   }
 
   const setVerifiedResult = (verifier, payload, status) => {
