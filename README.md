@@ -1111,9 +1111,8 @@ npm run lint  # eslint
 ```
 
 Run `npm run audit` for the CI dependency gate and `npm run test:audit` for its policy tests.
-The gate includes all severities and development dependencies. A narrowly scoped, expiring
-minimatch false-positive exception is documented in [the audit policy](docs/dependency-audit.md).
-Raw `npm audit` remains the unfiltered diagnostic; the policy output lists every excepted entry.
+The gate includes all severities and development dependencies and has no exceptions; see
+[the audit policy](docs/dependency-audit.md).
 
 The suite in [`test/unit.spec.js`](test/unit.spec.js) is also enforced in CI
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), which runs the tests and a
