@@ -165,7 +165,16 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
     ), 'echo')
   }
 
-  const response = await fetch(apiRequest)
+  let response
+  try {
+    response = await fetch(apiRequest)
+  } catch {
+    // An unreachable upstream is a gateway failure, not a Worker exception:
+    // answer with a plain 502 and a Worker log line instead of an edge error
+    // page. The exception text is not logged because it can carry the URL.
+    logError('upstream request failed', { status: 502 })
+    return respond(new Response('Bad Gateway', { status: 502 }), 'error')
+  }
   logDebug(ctx, 'upstream response received', {
     status: response.status
   })

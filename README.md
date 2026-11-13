@@ -1054,6 +1054,7 @@ npx wrangler tail --format pretty
 | `npm start` or `npm run deploy` stops with `Invalid Approov configuration` | Preflight lists each invalid or unknown variable by name. Fix the listed entries in `wrangler.toml` or `.dev.vars`. |
 | Cloudflare rejects an upload with validation error `10021` | A deployed binding, usually the `APPROOV_BACKEND_CONFIG` secret, is missing or invalid. Upload the secret again from a fresh export. |
 | Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Export and upload the configuration again after any keyset or API change. |
+| `502 Bad Gateway` with the body `Bad Gateway` | The Worker could not reach the upstream and logged `approov: upstream request failed`. Check `API_DOMAIN`, `API_PORT` and that the origin accepts HTTPS. |
 | `508 Loop Detected` | `API_PASSTHROUGH` is enabled outside the Worker Route topology, or `global_fetch_strictly_public` is on. See [deployment topologies](docs/deployment-topologies.md). |
 
 Read the Worker's log lines with `npx wrangler tail --format pretty`.
