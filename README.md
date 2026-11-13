@@ -303,8 +303,8 @@ API_DOMAIN = "postman-echo.com"
 > zones. A private Worker through a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/)
 > requires a source extension. This version always uses global `fetch()`; declaring a binding
 > alone does not select it as the upstream.
-> The request path is forwarded unchanged. When testing against Postman Echo, request a
-> concrete endpoint such as `/anything` (its echo convenience endpoint) — the root path `/`
+> The request path is forwarded unchanged. When testing against Postman Echo, request one of
+> its echo endpoints, such as `/get` for a `GET` or `/post` for a `POST`. The root path `/`
 > is not an echo endpoint there.
 
 > [!WARNING]
