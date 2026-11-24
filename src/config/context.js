@@ -165,7 +165,6 @@ const parseVerifiersFromJwks = (jwks, source) => {
     verifiers.set(kid, Object.freeze({
       kid,
       alg: jwk.alg,
-      kty: jwk.kty,
       source,
       key
     }))
@@ -402,7 +401,6 @@ export const establishContext = (env, { preflight = false } = {}) => {
     ? 403
     : Number(env.APPROOV_BLOCK_RESPONSE_STATUS)
   const approovBlockResponseBody = env.APPROOV_BLOCK_RESPONSE_BODY ?? 'Forbidden'
-  const approovLoggingEnabled = parseBoolean(env.APPROOV_LOGGING_ENABLED)
   const approovAnalyticsEnabled = parseBoolean(env.APPROOV_ANALYTICS_ENABLED)
   if (approovAnalyticsEnabled && !env.APPROOV_ANALYTICS) {
     logWarn('env.APPROOV_ANALYTICS_ENABLED is true but the APPROOV_ANALYTICS dataset binding is missing: no data points are written')
@@ -443,8 +441,6 @@ export const establishContext = (env, { preflight = false } = {}) => {
     approovActions,
     approovBlockResponseStatus,
     approovBlockResponseBody,
-    approovLoggingEnabled,
-    approovAnalyticsEnabled,
     approovEchoMode,
     approovProtectedPaths,
     pluginConfig,

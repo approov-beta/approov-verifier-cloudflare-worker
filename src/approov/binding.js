@@ -11,46 +11,19 @@ import { sha256Base64, timingSafeStringEqual } from '../utils/crypto.js'
  * @param {*} ctx Worker context containing binding header/claim names.
  * @param {*} request Incoming request.
  * @param {*} payload Decoded Approov token payload.
- * @returns {Promise<{ok: Boolean, status: String, claimName: String|null, expected: String|null, actual: String|null}>}
- *   Structured binding verification result.
+ * @returns {{status: String}} Binding verification outcome.
  */
-export const validateBinding = async (ctx, request, payload) => {
-  const result = {
-    ok: false,
-    status: null,
-    claimName: null,
-    expected: null,
-    actual: null
-  }
-
+export const validateBinding = (ctx, request, payload) => {
   const binding = request.headers.get(ctx.approovBindingHeaderName)
-  if (binding === null) {
-    result.status = APPROOV_BINDING_OUTCOMES.MISSING_HEADER
-    return result
-  }
-  if (binding.trim() === '') {
-    result.status = APPROOV_BINDING_OUTCOMES.EMPTY_HEADER
-    return result
-  }
+  if (binding === null) return { status: APPROOV_BINDING_OUTCOMES.MISSING_HEADER }
+  if (binding.trim() === '') return { status: APPROOV_BINDING_OUTCOMES.EMPTY_HEADER }
 
-  const claimName = ctx.approovBindingClaimName
-  result.claimName = claimName
-  const claimValue = payload[claimName]
-  if (!claimValue || typeof claimValue !== 'string') {
-    result.status = APPROOV_BINDING_OUTCOMES.MISSING_CLAIM
-    return result
+  const claimValue = payload[ctx.approovBindingClaimName]
+  if (!claimValue || typeof claimValue !== 'string') return { status: APPROOV_BINDING_OUTCOMES.MISSING_CLAIM }
+
+  return {
+    status: timingSafeStringEqual(claimValue, sha256Base64(binding))
+      ? APPROOV_BINDING_OUTCOMES.VALID
+      : APPROOV_BINDING_OUTCOMES.INVALID
   }
-
-  const hash = sha256Base64(binding)
-  result.expected = claimValue
-  result.actual = hash
-
-  if (timingSafeStringEqual(claimValue, hash)) {
-    result.ok = true
-    result.status = APPROOV_BINDING_OUTCOMES.VALID
-    return result
-  }
-
-  result.status = APPROOV_BINDING_OUTCOMES.INVALID
-  return result
 }

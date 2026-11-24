@@ -9,7 +9,7 @@ import { validateMessageSignatures } from '../src/approov/message-signing.js'
 import { evaluateApproovToken } from '../src/approov/evaluate.js'
 import { establishContext, resolveApiPolicy } from '../src/config/context.js'
 import { errorMessage, errorName } from '../src/utils/errors.js'
-import { logError, logInfo, logOutcome, logWarn } from '../src/utils/logging.js'
+import { logError, logInfo, logWarn } from '../src/utils/logging.js'
 import { rewriteApiRequest } from '../src/http/proxy.js'
 import { decodeBase64OrBase64Url, sha256Base64 as sha256Base64Util, timingSafeStringEqual } from '../src/utils/crypto.js'
 import { hasText, parseBoolean, trimOrNull } from '../src/utils/text.js'
@@ -2419,7 +2419,6 @@ describe('logging helpers', () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     // Without a details argument (default-parameter path).
     logInfo('info-no-details')
@@ -2428,14 +2427,12 @@ describe('logging helpers', () => {
     // With a details payload.
     logInfo('info-with-details', { a: 1 })
     logError('error-with-details', { b: 2 })
-    logOutcome('an outcome line')
 
     expect(infoSpy).toHaveBeenCalledWith('approov: info-no-details')
     expect(infoSpy).toHaveBeenCalledWith('approov: info-with-details', { a: 1 })
     expect(warnSpy).toHaveBeenCalledWith('approov: warn-no-details')
     expect(errorSpy).toHaveBeenCalledWith('approov: error-no-details')
     expect(errorSpy).toHaveBeenCalledWith('approov: error-with-details', { b: 2 })
-    expect(logSpy).toHaveBeenCalledWith('[Approov] an outcome line')
   })
 })
 

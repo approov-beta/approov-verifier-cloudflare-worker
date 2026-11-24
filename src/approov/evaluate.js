@@ -82,7 +82,7 @@ export const evaluateApproovToken = async (ctx, request, resolvedApiPolicy = nul
     if (trusted) {
       if (ctx.approovTokenBinding) {
         try {
-          const bindingVerification = await validateBinding(ctx, request, tokenVerification.decoded)
+          const bindingVerification = validateBinding(ctx, request, tokenVerification.decoded)
           out.bindingResult = bindingVerification.status
         } catch (err) {
           out.bindingResult = APPROOV_BINDING_OUTCOMES.ERROR
