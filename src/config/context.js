@@ -326,6 +326,13 @@ export const establishContext = (env, { preflight = false } = {}) => {
     'APPROOV_TOKEN_AUDIENCE_FROM_HOST'
   )
 
+  // The default secret is shared by every API in the account, and migration
+  // keyset candidates are not limited to the incoming API's own key. Only the
+  // audience then ties a token to the hostname it was issued for.
+  if (approovAcceptDefaultAccountSecret && !approovTokenAudienceFromHost && !approovTokenAudience) {
+    logWarn('env.APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET is true without an audience check: a token issued for one API is accepted on every API of this Worker; set env.APPROOV_TOKEN_AUDIENCE_FROM_HOST=true')
+  }
+
   // a fixed audience and a per-request audience contradict each other, so
   // refuse to start rather than silently preferring one of them
   if (approovTokenAudienceFromHost && approovTokenAudience) {

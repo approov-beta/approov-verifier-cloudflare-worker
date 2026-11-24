@@ -161,3 +161,20 @@ describe('analytics without its dataset binding', () => {
     expect(warned({ APPROOV_ANALYTICS_ENABLED: 'false' })).toBe(false)
   })
 })
+
+describe('default account secret without an audience check', () => {
+  const warned = (overrides) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(establishContext(makeEnv({ APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET: 'true', ...overrides })).isValid).toBe(true)
+    return warn.mock.calls.some(([message]) => message.includes('without an audience check'))
+  }
+
+  it('warns that tokens are accepted across APIs', () => {
+    expect(warned({})).toBe(true)
+  })
+
+  it('stays quiet when either audience check is configured', () => {
+    expect(warned({ APPROOV_TOKEN_AUDIENCE_FROM_HOST: 'true' })).toBe(false)
+    expect(warned({ APPROOV_TOKEN_AUDIENCE: 'worker.local' })).toBe(false)
+  })
+})
