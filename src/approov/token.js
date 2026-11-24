@@ -33,8 +33,12 @@ export const classifyJwtError = (err) => {
   }
 
   if (name === 'JsonWebTokenError') {
+    // A non-numeric exp or nbf is only reported after the signature verified,
+    // so the claim itself is malformed and no other key can change that.
     if (message.toLowerCase().includes('jwt malformed') ||
-      message.toLowerCase().includes('jwt signature is required')) {
+      message.toLowerCase().includes('jwt signature is required') ||
+      message.toLowerCase().includes('invalid exp value') ||
+      message.toLowerCase().includes('invalid nbf value')) {
       return { kind: APPROOV_TOKEN_OUTCOMES.MALFORMED, name, message }
     }
     if (message.toLowerCase().includes('invalid algorithm')) {

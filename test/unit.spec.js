@@ -2098,6 +2098,8 @@ describe('classifyJwtError', () => {
     { name: 'expiry', err: { name: 'TokenExpiredError', message: 'jwt expired' }, kind: 'EXPIRED' },
     { name: 'malformed', err: { name: 'JsonWebTokenError', message: 'jwt malformed' }, kind: 'MALFORMED' },
     { name: 'missing signature', err: { name: 'JsonWebTokenError', message: 'jwt signature is required' }, kind: 'MALFORMED' },
+    { name: 'non-numeric exp', err: { name: 'JsonWebTokenError', message: 'invalid exp value' }, kind: 'MALFORMED' },
+    { name: 'non-numeric nbf', err: { name: 'JsonWebTokenError', message: 'invalid nbf value' }, kind: 'MALFORMED' },
     { name: 'invalid algorithm', err: { name: 'JsonWebTokenError', message: 'invalid algorithm' }, kind: 'INVALID_ALG' },
     { name: 'audience', err: { name: 'JsonWebTokenError', message: 'jwt audience invalid' }, kind: 'INVALID_AUD' },
     { name: 'signature', err: { name: 'JsonWebTokenError', message: 'invalid signature' }, kind: 'INVALID_SIG' },
