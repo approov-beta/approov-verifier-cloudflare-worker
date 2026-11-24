@@ -388,6 +388,9 @@ export const establishContext = (env, { preflight = false } = {}) => {
     binding: env.APPROOV_TOKEN_BINDING_ACTION ?? null,
     messageSigning: env.APPROOV_MESSAGE_SIGNING_ACTION ?? null
   })
+  if (approovMode === 'block' && !Object.values(approovActions).includes('block')) {
+    logWarn('env.APPROOV_MODE is "block" but no action is "block": failing requests are forwarded and never annotated')
+  }
   const approovBlockResponseStatus = env.APPROOV_BLOCK_RESPONSE_STATUS === undefined
     ? 403
     : Number(env.APPROOV_BLOCK_RESPONSE_STATUS)

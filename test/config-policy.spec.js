@@ -127,3 +127,20 @@ describe('explicit Worker configuration', () => {
     expect(establishContext(env).isValid).toBe(true)
   })
 })
+
+describe('block mode without a blocking action', () => {
+  const warned = (overrides) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ctx = establishContext(makeEnv({ APPROOV_MODE: 'block', ...overrides }))
+    expect(ctx.isValid).toBe(true)
+    return warn.mock.calls.some(([message]) => message.includes('no action is "block"'))
+  }
+
+  it('warns when every action is "continue"', () => {
+    expect(warned({ APPROOV_TOKEN_ACTION: 'continue', APPROOV_MESSAGE_SIGNING_ACTION: 'continue' })).toBe(true)
+  })
+
+  it('stays quiet when one action blocks', () => {
+    expect(warned({ APPROOV_TOKEN_ACTION: 'continue', APPROOV_MESSAGE_SIGNING_ACTION: 'block' })).toBe(false)
+  })
+})
