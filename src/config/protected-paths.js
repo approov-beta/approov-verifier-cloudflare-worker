@@ -1,29 +1,46 @@
 import { trimOrNull } from '../utils/text.js'
 
+const utf8 = new TextDecoder()
+
+// Decode every %XX escape. Unlike decodeURIComponent, one invalid sequence
+// (such as "%ff") never leaves the rest of the path undecoded.
+const percentDecode = (path) => path.replace(/(?:%[0-9a-f]{2})+/gi, (run) =>
+  utf8.decode(Uint8Array.from(run.slice(1).split('%'), (hex) => Number.parseInt(hex, 16))))
+
 /**
  * Normalize a path for matching only; the forwarded URL is never changed.
  *
- * Many origins percent-decode, collapse duplicate slashes, treat a backslash
- * as a slash, drop ";" path parameters or route case-insensitively, so a raw
- * comparison would let an alternate spelling of a protected path reach the
- * origin unchecked. A false positive only adds checks; a false negative skips
- * them.
+ * Many origins percent-decode (some more than once), collapse duplicate
+ * slashes, treat a backslash as a slash, drop ";" path parameters or route
+ * case-insensitively, so a raw comparison would let an alternate spelling of a
+ * protected path reach the origin unchecked. A false positive only adds
+ * checks; a false negative skips them.
  *
  * @param {String} pathname URL path.
  * @returns {String} Decoded, parameter-free, slash-collapsed, lowercase path.
  */
 export const normalizePathForMatching = (pathname) => {
   let path = String(pathname)
-  try {
-    path = decodeURIComponent(path)
-  } catch {
-    // Not decodable: keep the raw spelling.
-  }
+  // Three passes cover double and triple encoding. Decoding is idempotent
+  // once no escape is left.
+  for (let pass = 0; pass < 3; pass++) path = percentDecode(path)
   return path
     .replace(/\\/g, '/')
     .replace(/;[^/]*/g, '')
     .replace(/\/{2,}/g, '/')
     .toLowerCase()
+}
+
+// Resolve "." and ".." segments that only appear after decoding, such as
+// "/public%2f..%2fapi" or "/public/..;/api". The URL parser has already
+// resolved the literal ones.
+const resolveDotSegments = (path) => {
+  const resolved = []
+  for (const segment of path.split('/')) {
+    if (segment === '..') resolved.pop()
+    else if (segment !== '' && segment !== '.') resolved.push(segment)
+  }
+  return `/${resolved.join('/')}`
 }
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -85,6 +102,9 @@ export const parseProtectedPaths = (env, errors) => {
  */
 export const isProtectedPath = (ctx, pathname) => {
   if (!ctx.approovProtectedPaths) return true
+  // Origins differ on whether they resolve decoded dot segments, so a match
+  // on either spelling is protected.
   const path = normalizePathForMatching(pathname)
-  return ctx.approovProtectedPaths.some((matcher) => matcher.test(path))
+  const resolved = resolveDotSegments(path)
+  return ctx.approovProtectedPaths.some((matcher) => matcher.test(path) || matcher.test(resolved))
 }

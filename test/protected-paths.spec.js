@@ -111,6 +111,26 @@ describe('protected path patterns', () => {
     expect(isProtectedPath(ctx, '/shop/de/v6/checkout-old')).toBe(false)
   })
 
+  it('checks spellings that only reach a protected path after the origin decodes them', () => {
+    const ctx = contextFor('/api')
+    for (const path of [
+      '/%61pi/users/%ff',
+      '/api/users%ff',
+      '/public%2f..%2fapi/users',
+      '/public%5c..%5capi/users',
+      '/public/..;/api/users',
+      '/public/%2e;x/../.;/api/users',
+      '/%2561pi/users',
+      '/public%252f%252e%252e%252fapi',
+      '/api/x/..;/..;/open'
+    ]) {
+      expect(isProtectedPath(ctx, path), path).toBe(true)
+    }
+    for (const path of ['/public/..;/open', '/..;/..;/open', '/apiary%ff']) {
+      expect(isProtectedPath(ctx, path), path).toBe(false)
+    }
+  })
+
   it.each(['/api/', '/', '/shop/*/'])('rejects the trailing-slash entry %s, which would protect nothing below it', (entry) => {
     const ctx = contextFor(`/shop/*/*/checkout, ${entry}`)
     expect(ctx.isValid).toBe(false)
