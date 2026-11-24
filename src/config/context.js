@@ -397,6 +397,9 @@ export const establishContext = (env, { preflight = false } = {}) => {
   const approovBlockResponseBody = env.APPROOV_BLOCK_RESPONSE_BODY ?? 'Forbidden'
   const approovLoggingEnabled = parseBoolean(env.APPROOV_LOGGING_ENABLED)
   const approovAnalyticsEnabled = parseBoolean(env.APPROOV_ANALYTICS_ENABLED)
+  if (approovAnalyticsEnabled && !env.APPROOV_ANALYTICS) {
+    logWarn('env.APPROOV_ANALYTICS_ENABLED is true but the APPROOV_ANALYTICS dataset binding is missing: no data points are written')
+  }
 
   const approovEchoMode = parseBoolean(env.APPROOV_ECHO_MODE, false, errors, 'APPROOV_ECHO_MODE')
   const approovProtectedPaths = parseProtectedPaths(env, errors)

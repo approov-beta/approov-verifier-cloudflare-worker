@@ -144,3 +144,20 @@ describe('block mode without a blocking action', () => {
     expect(warned({ APPROOV_TOKEN_ACTION: 'continue', APPROOV_MESSAGE_SIGNING_ACTION: 'block' })).toBe(false)
   })
 })
+
+describe('analytics without its dataset binding', () => {
+  const warned = (overrides) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(establishContext(makeEnv(overrides)).isValid).toBe(true)
+    return warn.mock.calls.some(([message]) => message.includes('APPROOV_ANALYTICS dataset binding is missing'))
+  }
+
+  it('warns when analytics is enabled and the binding is missing', () => {
+    expect(warned({ APPROOV_ANALYTICS_ENABLED: 'true' })).toBe(true)
+  })
+
+  it('stays quiet when the binding is present or analytics is off', () => {
+    expect(warned({ APPROOV_ANALYTICS_ENABLED: 'true', APPROOV_ANALYTICS: { writeDataPoint () {} } })).toBe(false)
+    expect(warned({ APPROOV_ANALYTICS_ENABLED: 'false' })).toBe(false)
+  })
+})
