@@ -8,7 +8,7 @@ import { classifyJwtError, validateToken } from '../src/approov/token.js'
 import { validateMessageSignatures } from '../src/approov/message-signing.js'
 import { evaluateApproovToken } from '../src/approov/evaluate.js'
 import { establishContext, resolveApiPolicy } from '../src/config/context.js'
-import { errorMessage } from '../src/utils/errors.js'
+import { errorMessage, errorName } from '../src/utils/errors.js'
 import { logError, logInfo, logOutcome, logWarn } from '../src/utils/logging.js'
 import { rewriteApiRequest } from '../src/http/proxy.js'
 import { decodeBase64OrBase64Url, sha256Base64 as sha256Base64Util, timingSafeStringEqual } from '../src/utils/crypto.js'
@@ -2643,6 +2643,14 @@ describe('Worker re-entry detection', () => {
       new Request('https://worker.local/x', { headers: { 'Approov-Gateway-Hop': 'forged, values' } })
     )
     expect(out.headers.get('Approov-Gateway-Hop')).toBe('1')
+  })
+})
+
+describe('errorName', () => {
+  it('names the error class and never the message', () => {
+    expect(errorName(new TypeError('PRIVATE'))).toBe('TypeError')
+    expect(errorName('PRIVATE')).toBe('string')
+    expect(errorName(null)).toBe('object')
   })
 })
 

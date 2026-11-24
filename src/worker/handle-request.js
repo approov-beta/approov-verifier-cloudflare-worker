@@ -6,7 +6,7 @@ import { rewriteApiRequest } from '../http/proxy.js'
 import { createAnalytics } from '../analytics.js'
 import { assessProtection, shouldBlock } from '../approov/policy.js'
 import { logDebug, logError } from '../utils/logging.js'
-import { errorMessage } from '../utils/errors.js'
+import { errorMessage, errorName } from '../utils/errors.js'
 
 // Header names that must never be reflected verbatim in echo-mode output.
 const ALWAYS_REDACTED_ECHO_HEADERS = Object.freeze(['authorization', 'cookie', 'set-cookie'])
@@ -123,7 +123,7 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
       }
     } catch (err) {
       evaluationError = true
-      logError('unrecoverable error caught')
+      logError('unrecoverable error caught', { error: errorName(err) })
       approovResult = approovResult || ERROR_RESULT
       approovResultBase64 = ERROR_RESULT_BASE64
     }

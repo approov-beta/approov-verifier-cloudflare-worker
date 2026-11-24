@@ -27,6 +27,9 @@ describe('message signing errors preserve completed token verification', () => {
     expect(result.tokenVerification.status).toBe('PASS')
     expect(result.messageSigningResult).toBe('ERROR')
     expect(JSON.stringify(result)).not.toContain('PRIVATE')
-    expect(errors).toHaveBeenCalledWith('approov: message signing verification error', { status: 'ERROR' })
+    expect(errors).toHaveBeenCalledWith(
+      'approov: message signing verification error',
+      stage === 'returned-error' ? { status: 'ERROR' } : { status: 'ERROR', error: 'Error' }
+    )
   })
 })
