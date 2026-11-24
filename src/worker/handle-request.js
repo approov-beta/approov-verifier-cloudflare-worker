@@ -73,21 +73,27 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
     return respond(new Response('Internal Server Error', { status: 500 }), 'error')
   }
 
-  // In pass-through mode the forwarded request targets the hostname it arrived
-  // on, so a request that already carries the hop marker means the subrequest
-  // came back to this Worker instead of reaching the origin. Fail closed with a
+  // A request that already carries the hop marker and would be forwarded to
+  // the hostname it arrived on came back to this Worker instead of reaching
+  // the origin. That is every marked request in pass-through mode, and in
+  // fixed mode one whose hostname equals API_DOMAIN. Fail closed with a
   // distinct status: continuing would recurse until Cloudflare's subrequest
-  // limit and report an unrelated error.
-  if (ctx.apiPassthrough && request.headers.has(APPROOV_GATEWAY_HOP_HEADER_NAME)) {
+  // limit and report an unrelated error. A marker on any other fixed-mode
+  // request is client-supplied and is ignored.
+  const url = new URL(request.url)
+  if (request.headers.has(APPROOV_GATEWAY_HOP_HEADER_NAME) &&
+    (ctx.apiPassthrough || url.hostname === ctx.apiHost.toLowerCase())) {
     logError('worker re-entered its own route', {
-      message: 'API_PASSTHROUGH requires the Worker Route topology with the global_fetch_strictly_public compatibility flag disabled'
+      message: ctx.apiPassthrough
+        ? 'API_PASSTHROUGH requires the Worker Route topology with the global_fetch_strictly_public compatibility flag disabled'
+        : 'API_DOMAIN is the hostname this Worker serves; point it at the origin or use the Worker Route topology'
     })
     return respond(new Response('Loop Detected', { status: 508 }), 'error')
   }
 
   let apiPolicy
   try {
-    apiPolicy = resolveApiPolicy(ctx, new URL(request.url).hostname)
+    apiPolicy = resolveApiPolicy(ctx, url.hostname)
   } catch (err) {
     // The reason names only the incoming hostname and the unmet requirement,
     // never key material, and is what an operator needs to fix the 500.
@@ -97,7 +103,7 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
 
   // A path outside APPROOV_PROTECTED_PATHS is forwarded unchecked and
   // unannotated. Without that setting every path is protected.
-  const protectedPath = isProtectedPath(ctx, new URL(request.url).pathname)
+  const protectedPath = isProtectedPath(ctx, url.pathname)
   let approovResultBase64 = null
 
   if (protectedPath) {

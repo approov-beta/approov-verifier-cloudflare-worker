@@ -2594,6 +2594,29 @@ describe('Worker re-entry detection', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('returns 508 in fixed mode when API_DOMAIN is the hostname the marked request arrived on', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await runWorker({
+      headers: { 'Approov-Token': TOKEN_FIXTURES.PASS, 'Approov-Gateway-Hop': '1' },
+      envOverrides: { API_DOMAIN: 'Worker.Local' }
+    })
+
+    expect(response.status).toBe(508)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(error.mock.calls.flat().map((entry) => JSON.stringify(entry)).join(' ')).toContain('API_DOMAIN')
+  })
+
+  it('forwards an unmarked fixed-mode request whose hostname equals API_DOMAIN', async () => {
+    const response = await runWorker({
+      headers: { 'Approov-Token': TOKEN_FIXTURES.PASS },
+      envOverrides: { API_DOMAIN: 'worker.local' }
+    })
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores a client-supplied hop marker in fixed mode', async () => {
     const response = await runWorker({
       headers: { 'Approov-Token': TOKEN_FIXTURES.PASS, 'Approov-Gateway-Hop': '1' },
