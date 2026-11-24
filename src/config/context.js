@@ -34,51 +34,15 @@ const isBareHost = (value) => {
 }
 
 /**
- * Parse allowed timestamp skew for message-signing verification.
+ * Read a non-negative integer setting. The shared schema has already reported
+ * a malformed value as a startup error, so this only picks the default.
  *
- * @param {*} env Worker environment bindings.
- * @param {String[]} errors Mutable configuration error list.
- * @returns {Number} Non-negative tolerance value in seconds.
+ * @param {*} value Raw binding value.
+ * @param {Number} fallback Default when the value is unset or malformed.
+ * @returns {Number} Parsed value or the default.
  */
-const parseMessageSigningTolerance = (env, errors) => {
-  const toleranceRaw = typeof env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS === 'number'
-    ? String(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS)
-    : trimOrNull(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS)
-  if (!toleranceRaw) return 60
-
-  if (!/^\d+$/.test(toleranceRaw) || !Number.isSafeInteger(Number.parseInt(toleranceRaw, 10))) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS must be a non-negative integer')
-    return 60
-  }
-  return Number.parseInt(toleranceRaw, 10)
-}
-
-/**
- * Parse the maximum request body size to consume while validating Content-Digest.
- *
- * @param {*} env Worker environment bindings.
- * @param {String[]} errors Mutable configuration error list.
- * @returns {Number} Non-negative maximum in bytes.
- */
-const parseMessageSigningMaxBodyBytes = (env, errors) => {
-  const maxBodyBytesRaw = typeof env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES === 'number'
-    ? String(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES)
-    : trimOrNull(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES)
-  if (!maxBodyBytesRaw) return 1048576
-
-  if (!/^\d+$/.test(maxBodyBytesRaw)) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES must be a non-negative integer')
-    return 1048576
-  }
-
-  const parsed = Number.parseInt(maxBodyBytesRaw, 10)
-  if (!Number.isSafeInteger(parsed)) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES must be a safe integer')
-    return 1048576
-  }
-
-  return parsed
-}
+const integerSetting = (value, fallback) =>
+  typeof value === 'number' || /^\d+$/.test(String(value)) ? Number(value) : fallback
 
 /**
  * Load the account message-signing secret from `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`.
@@ -342,9 +306,9 @@ export const establishContext = (env, { preflight = false } = {}) => {
 
   const approovTokenBinding = parseBoolean(env.APPROOV_TOKEN_BINDING_ENABLED, false, errors, 'APPROOV_TOKEN_BINDING_ENABLED')
 
-  const approovMessageSigningTolerance = parseMessageSigningTolerance(env, errors)
+  const approovMessageSigningTolerance = integerSetting(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS, 60)
   const approovMessageSigningRequired = env.APPROOV_MESSAGE_SIGNING_REQUIRED ?? null
-  const approovMessageSigningMaxBodyBytes = parseMessageSigningMaxBodyBytes(env, errors)
+  const approovMessageSigningMaxBodyBytes = integerSetting(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES, 1048576)
   const approovAccountMessageSigningSecret = loadAccountMessageSigningSecret(env)
   const approovAccountMessageSigningKeyId = trimOrNull(env.APPROOV_ACCOUNT_MESSAGE_SIGNING_KEY_ID)
   const hasAccountMessageSigningSecret =
