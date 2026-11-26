@@ -28,15 +28,25 @@ config](#5-upload-the-backend-config).
   [Managing Key Sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets).
 - A Cloudflare account with a Worker entitlement, and Wrangler already authenticated.
 
-Set your Worker's hostname once. Every command below uses it:
+## Save your hostname in a variable
+
+On `workers.dev` your Worker's hostname is `approov-gateway.<your-subdomain>.workers.dev`.
+`approov-gateway` is the `name` field in [`wrangler.toml`](../wrangler.toml). Your subdomain is
+shown at the bottom of the **Workers & Pages** dashboard.
+
+Several commands below need this hostname. Type it once and save it in a variable named
+`API_HOST`. Replace `<your-subdomain>` first:
 
 ```powershell
 $env:API_HOST = "approov-gateway.<your-subdomain>.workers.dev"
 ```
 
-`approov-gateway` is the `name` field in [`wrangler.toml`](../wrangler.toml). Your subdomain is
-shown at the bottom of the **Workers & Pages** dashboard. The variable lasts for the current
-PowerShell session only.
+From now on, wherever a command contains `$env:API_HOST`, PowerShell puts the hostname there.
+
+- It is only a shortcut for this guide. The Worker, Wrangler and Approov never read it. It is
+  not the same as `API_DOMAIN` in `wrangler.toml`.
+- It exists only in the PowerShell window where you set it. In a new window, set it again.
+- If a command behaves oddly, run `$env:API_HOST`. It must print your hostname.
 
 ## 1. Install dependencies
 

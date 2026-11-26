@@ -82,18 +82,40 @@ The commands assume a POSIX shell. On Windows, follow the
 
 ### 1. First verified request
 
-#### Step 1. Set your hostname
+#### Step 1. Save your hostname in a variable
 
-The Worker picks its Approov settings from the hostname each request arrives on. Set it once
-and every command below uses it. Your subdomain is shown at the bottom of **Workers & Pages**
-in the Cloudflare dashboard.
+The Worker picks its Approov settings from the hostname each request arrives on. On
+`workers.dev` that hostname is `approov-gateway.<your-subdomain>.workers.dev`:
+
+- `approov-gateway` is the `name` in [`wrangler.toml`](wrangler.toml).
+- Your subdomain is shown at the bottom of **Workers & Pages** in the Cloudflare dashboard.
+
+Several commands below need this hostname, and a typo in any of them breaks the setup. So
+type it once and save it in a shell variable named `API_HOST`. Replace `<your-subdomain>`
+first:
 
 ```shell
 export API_HOST="approov-gateway.<your-subdomain>.workers.dev"
 ```
 
-`approov-gateway` is the `name` in [`wrangler.toml`](wrangler.toml). If you change it there,
-change it here too.
+From now on, wherever a command contains `"$API_HOST"`, your shell puts the hostname there.
+You can copy those commands as they are.
+
+Three things to know:
+
+- **It is only a shortcut for this guide.** The Worker, Wrangler and Approov never read it.
+  It is not the same as `API_DOMAIN` in `wrangler.toml`, which is where the Worker sends
+  requests.
+- **It exists only in the terminal where you set it.** In a new terminal window or tab, run
+  the `export` line again.
+- **Check it whenever a command behaves oddly:**
+
+  ```shell
+  echo "$API_HOST"
+  ```
+
+  This must print your hostname. If it prints an empty line, the `approov` commands fail with
+  misleading errors such as `type is only valid with genExample`, or print nothing.
 
 #### Step 2. Install and log in
 
@@ -126,19 +148,22 @@ secret. The Worker refuses that and returns `500` for every request.
 
 ```shell
 approov secret -getBackendConfig approov-config.json
-jq --arg h "$API_HOST" '.apis[$h]' approov-config.json
+jq '.apis | map_values(.kid // "NO KEYSET KEY")' approov-config.json
 ```
 
-You must see your key ID:
+This lists every hostname in the export with its key ID. Yours must be there with the key
+from step 3:
 
 ```json
-{ "kid": "example-es256", "isPassKeyPresent": true, "isFailKeyPresent": true }
+{
+  "approov-gateway.example.workers.dev": "example-es256"
+}
 ```
 
 | You see | Fix |
 |---|---|
-| `null` | The hostname is not registered. Check `echo $API_HOST`, then repeat step 4. |
-| No `kid` | The hostname has no keyset key. Repeat step 4 with `-keySetKID`. |
+| Your hostname is not listed | It is not registered. Check `echo "$API_HOST"`, then repeat step 4. |
+| `"NO KEYSET KEY"` beside your hostname | It has no keyset key. Repeat step 4 with `-keySetKID`. |
 
 Repeat this step after every keyset or API change. The Worker only knows what you upload.
 The file holds key material. The repository ignores it so it cannot be committed by accident.
@@ -222,7 +247,7 @@ export INVALID_APPROOV_TOKEN='<the invalid token>'
 Call the Worker:
 
 ```shell
-curl -s "https://$API_HOST/get" --compressed -H "Approov-Token: $VALID_APPROOV_TOKEN" \
+curl -sS "https://$API_HOST/get" --compressed -H "Approov-Token: $VALID_APPROOV_TOKEN" \
   | jq -r '.headers."approov-result"' | base64 -d \
   | jq '{tokenResult, bindingResult, messageSigningResult, key: .tokenVerification.verification.keyId}'
 ```
@@ -278,7 +303,7 @@ response body never says why. The log does. Then find the symptom in
 
 Then do three things:
 
-1. Set `API_HOST` to the new hostname and repeat steps 4 to 6. For several hostnames, repeat
+1. Run the `export` line from step 1 again with the new hostname, then repeat steps 4 to 6. For several hostnames, repeat
    step 4 for each one.
 2. Add the matching block below to `wrangler.toml` and deploy.
 3. Repeat step 7 against the new hostname with a real path on your API instead of `/get`.
@@ -389,7 +414,7 @@ The Worker listens on port 8787. It picks its settings from the hostname, so cal
 registered hostname and resolve it to localhost. A request to `localhost` returns `500`.
 
 ```shell
-curl -s --resolve "$API_HOST:8787:127.0.0.1" "http://$API_HOST:8787/get" --compressed \
+curl -sS --resolve "$API_HOST:8787:127.0.0.1" "http://$API_HOST:8787/get" --compressed \
   -H "Approov-Token: $VALID_APPROOV_TOKEN" \
   | jq -r '.headers."approov-result"' | base64 -d | jq
 ```
