@@ -1,6 +1,6 @@
 # Windows Quickstart (PowerShell)
 
-The [main quickstart](../README.md#quickstart-wrangler) assumes a POSIX shell. This guide walks
+The [main quickstart](../README.md#quickstart) assumes a POSIX shell. This guide walks
 the same deployment on Windows and calls out the places where the commands genuinely differ —
 input redirection, `curl`, file encoding, and the missing `jq`/`base64` utilities.
 
@@ -28,12 +28,15 @@ config](#5-upload-the-backend-config).
   [Managing Key Sets](https://ext.approov.io/docs/latest/approov-usage-documentation/#managing-key-sets).
 - A Cloudflare account with a Worker entitlement, and Wrangler already authenticated.
 
-Two placeholders are used throughout, matching the main README:
+Set your Worker's hostname once. Every command below uses it:
 
-- `$(WORKER_NAME)` — the `name` field in [`wrangler.toml`](../wrangler.toml), default
-  `approov-gateway`.
-- `$(WORKER_DOMAIN)` — your `*.workers.dev` subdomain, shown at the bottom of the
-  **Workers & Pages** dashboard.
+```powershell
+$env:API_HOST = "approov-gateway.<your-subdomain>.workers.dev"
+```
+
+`approov-gateway` is the `name` field in [`wrangler.toml`](../wrangler.toml). Your subdomain is
+shown at the bottom of the **Workers & Pages** dashboard. The variable lasts for the current
+PowerShell session only.
 
 ## 1. Install dependencies
 
@@ -56,8 +59,13 @@ The Worker resolves its verification policy from the **incoming hostname**, so t
 hostname must be registered with Approov before the backend config is exported:
 
 ```powershell
-approov api -add $(WORKER_NAME).$(WORKER_DOMAIN) -keySetKID "example-es256"
+approov keyset -add ES256 -kid example-es256
+approov api -add $env:API_HOST -keySetKID "example-es256"
 ```
+
+Skip the first command if `approov keyset -list` already shows a key you want to use, and
+pass its key ID instead. **Do not leave out `-keySetKID`.** A hostname without a keyset key
+uses your account's default secret, and the Worker returns `500` for every request.
 
 Register the custom hostname instead if the Worker will be served from one. Changing the
 Worker name or public hostname later requires repeating this step and re-exporting the
@@ -118,8 +126,8 @@ end-to-end test can show exactly what the Worker forwarded.
 ## 7. Generate example tokens
 
 ```powershell
-$env:VALID_APPROOV_TOKEN   = (approov token -genExample $(WORKER_NAME).$(WORKER_DOMAIN))
-$env:INVALID_APPROOV_TOKEN = (approov token -genExample $(WORKER_NAME).$(WORKER_DOMAIN) -type invalid)
+$env:VALID_APPROOV_TOKEN   = (approov token -genExample $env:API_HOST)
+$env:INVALID_APPROOV_TOKEN = (approov token -genExample $env:API_HOST -type invalid)
 ```
 
 Example tokens expire after **2 hours**. If the CLI prints surrounding text, assign only the
@@ -158,7 +166,7 @@ hostname while resolving to localhost. Windows has no `jq` or `base64`, so decod
 `Approov-Result` header with PowerShell built-ins:
 
 ```powershell
-$h = "$(WORKER_NAME).$(WORKER_DOMAIN)"
+$h = $env:API_HOST
 $r = curl.exe -s --resolve "${h}:8787:127.0.0.1" "http://${h}:8787/get" --compressed -H "Approov-Token: $env:VALID_APPROOV_TOKEN" | ConvertFrom-Json
 [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.headers.'approov-result')) | ConvertFrom-Json | ConvertTo-Json
 ```
@@ -189,7 +197,7 @@ npm run deploy --
 Re-run the check against the live hostname — no `--resolve`, and `https`:
 
 ```powershell
-$h = "$(WORKER_NAME).$(WORKER_DOMAIN)"
+$h = $env:API_HOST
 $r = curl.exe -s "https://${h}/get" --compressed -H "Approov-Token: $env:VALID_APPROOV_TOKEN" | ConvertFrom-Json
 [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.headers.'approov-result')) | ConvertFrom-Json | ConvertTo-Json
 ```
