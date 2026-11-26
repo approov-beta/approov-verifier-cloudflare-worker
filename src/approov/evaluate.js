@@ -5,6 +5,7 @@ import {
   APPROOV_TOKEN_OUTCOMES
 } from '../constants.js'
 import { logDebug, logError } from '../utils/logging.js'
+import { errorName } from '../utils/errors.js'
 import { runPlugins } from '../plugin-host.js'
 import { resolveApiPolicy } from '../config/context.js'
 import { validateBinding } from './binding.js'
@@ -81,11 +82,11 @@ export const evaluateApproovToken = async (ctx, request, resolvedApiPolicy = nul
     if (trusted) {
       if (ctx.approovTokenBinding) {
         try {
-          const bindingVerification = await validateBinding(ctx, request, tokenVerification.decoded)
+          const bindingVerification = validateBinding(ctx, request, tokenVerification.decoded)
           out.bindingResult = bindingVerification.status
-        } catch {
+        } catch (err) {
           out.bindingResult = APPROOV_BINDING_OUTCOMES.ERROR
-          logError('token binding verification error', { status: 'ERROR' })
+          logError('token binding verification error', { status: 'ERROR', error: errorName(err) })
         }
       }
       try {
@@ -94,9 +95,9 @@ export const evaluateApproovToken = async (ctx, request, resolvedApiPolicy = nul
         out.messageSigningVerification = signing
         out.messageSigningResult = signing.status
         if (signing.status === 'ERROR') logError('message signing verification error', { status: 'ERROR' })
-      } catch {
+      } catch (err) {
         out.messageSigningResult = APPROOV_MESSAGE_SIGNING_OUTCOMES.ERROR
-        logError('message signing verification error', { status: 'ERROR' })
+        logError('message signing verification error', { status: 'ERROR', error: errorName(err) })
       }
     }
 
@@ -109,7 +110,7 @@ export const evaluateApproovToken = async (ctx, request, resolvedApiPolicy = nul
     return out
   } catch (err) {
     out.tokenResult = APPROOV_TOKEN_OUTCOMES.ERROR
-    logError('token verification error', { status: 'ERROR' })
+    logError('token verification error', { status: 'ERROR', error: errorName(err) })
     return out
   }
 }

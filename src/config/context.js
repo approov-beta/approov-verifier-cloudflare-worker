@@ -34,51 +34,15 @@ const isBareHost = (value) => {
 }
 
 /**
- * Parse allowed timestamp skew for message-signing verification.
+ * Read a non-negative integer setting. The shared schema has already reported
+ * a malformed value as a startup error, so this only picks the default.
  *
- * @param {*} env Worker environment bindings.
- * @param {String[]} errors Mutable configuration error list.
- * @returns {Number} Non-negative tolerance value in seconds.
+ * @param {*} value Raw binding value.
+ * @param {Number} fallback Default when the value is unset or malformed.
+ * @returns {Number} Parsed value or the default.
  */
-const parseMessageSigningTolerance = (env, errors) => {
-  const toleranceRaw = typeof env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS === 'number'
-    ? String(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS)
-    : trimOrNull(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS)
-  if (!toleranceRaw) return 60
-
-  if (!/^\d+$/.test(toleranceRaw) || !Number.isSafeInteger(Number.parseInt(toleranceRaw, 10))) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS must be a non-negative integer')
-    return 60
-  }
-  return Number.parseInt(toleranceRaw, 10)
-}
-
-/**
- * Parse the maximum request body size to consume while validating Content-Digest.
- *
- * @param {*} env Worker environment bindings.
- * @param {String[]} errors Mutable configuration error list.
- * @returns {Number} Non-negative maximum in bytes.
- */
-const parseMessageSigningMaxBodyBytes = (env, errors) => {
-  const maxBodyBytesRaw = typeof env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES === 'number'
-    ? String(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES)
-    : trimOrNull(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES)
-  if (!maxBodyBytesRaw) return 1048576
-
-  if (!/^\d+$/.test(maxBodyBytesRaw)) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES must be a non-negative integer')
-    return 1048576
-  }
-
-  const parsed = Number.parseInt(maxBodyBytesRaw, 10)
-  if (!Number.isSafeInteger(parsed)) {
-    errors.push('env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES must be a safe integer')
-    return 1048576
-  }
-
-  return parsed
-}
+const integerSetting = (value, fallback) =>
+  typeof value === 'number' || /^\d+$/.test(String(value)) ? Number(value) : fallback
 
 /**
  * Load the account message-signing secret from `APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`.
@@ -165,7 +129,6 @@ const parseVerifiersFromJwks = (jwks, source) => {
     verifiers.set(kid, Object.freeze({
       kid,
       alg: jwk.alg,
-      kty: jwk.kty,
       source,
       key
     }))
@@ -326,6 +289,13 @@ export const establishContext = (env, { preflight = false } = {}) => {
     'APPROOV_TOKEN_AUDIENCE_FROM_HOST'
   )
 
+  // The default secret is shared by every API in the account, and migration
+  // keyset candidates are not limited to the incoming API's own key. Only the
+  // audience then ties a token to the hostname it was issued for.
+  if (approovAcceptDefaultAccountSecret && !approovTokenAudienceFromHost && !approovTokenAudience) {
+    logWarn('env.APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET is true without an audience check: a token issued for one API is accepted on every API of this Worker; set env.APPROOV_TOKEN_AUDIENCE_FROM_HOST=true')
+  }
+
   // a fixed audience and a per-request audience contradict each other, so
   // refuse to start rather than silently preferring one of them
   if (approovTokenAudienceFromHost && approovTokenAudience) {
@@ -336,9 +306,9 @@ export const establishContext = (env, { preflight = false } = {}) => {
 
   const approovTokenBinding = parseBoolean(env.APPROOV_TOKEN_BINDING_ENABLED, false, errors, 'APPROOV_TOKEN_BINDING_ENABLED')
 
-  const approovMessageSigningTolerance = parseMessageSigningTolerance(env, errors)
+  const approovMessageSigningTolerance = integerSetting(env.APPROOV_MESSAGE_SIGNING_TOLERANCE_SECONDS, 60)
   const approovMessageSigningRequired = env.APPROOV_MESSAGE_SIGNING_REQUIRED ?? null
-  const approovMessageSigningMaxBodyBytes = parseMessageSigningMaxBodyBytes(env, errors)
+  const approovMessageSigningMaxBodyBytes = integerSetting(env.APPROOV_MESSAGE_SIGNING_MAX_BODY_BYTES, 1048576)
   const approovAccountMessageSigningSecret = loadAccountMessageSigningSecret(env)
   const approovAccountMessageSigningKeyId = trimOrNull(env.APPROOV_ACCOUNT_MESSAGE_SIGNING_KEY_ID)
   const hasAccountMessageSigningSecret =
@@ -388,12 +358,17 @@ export const establishContext = (env, { preflight = false } = {}) => {
     binding: env.APPROOV_TOKEN_BINDING_ACTION ?? null,
     messageSigning: env.APPROOV_MESSAGE_SIGNING_ACTION ?? null
   })
+  if (approovMode === 'block' && !Object.values(approovActions).includes('block')) {
+    logWarn('env.APPROOV_MODE is "block" but no action is "block": failing requests are forwarded and never annotated')
+  }
   const approovBlockResponseStatus = env.APPROOV_BLOCK_RESPONSE_STATUS === undefined
     ? 403
     : Number(env.APPROOV_BLOCK_RESPONSE_STATUS)
   const approovBlockResponseBody = env.APPROOV_BLOCK_RESPONSE_BODY ?? 'Forbidden'
-  const approovLoggingEnabled = parseBoolean(env.APPROOV_LOGGING_ENABLED)
   const approovAnalyticsEnabled = parseBoolean(env.APPROOV_ANALYTICS_ENABLED)
+  if (approovAnalyticsEnabled && !env.APPROOV_ANALYTICS) {
+    logWarn('env.APPROOV_ANALYTICS_ENABLED is true but the APPROOV_ANALYTICS dataset binding is missing: no data points are written')
+  }
 
   const approovEchoMode = parseBoolean(env.APPROOV_ECHO_MODE, false, errors, 'APPROOV_ECHO_MODE')
   const approovProtectedPaths = parseProtectedPaths(env, errors)
@@ -430,8 +405,6 @@ export const establishContext = (env, { preflight = false } = {}) => {
     approovActions,
     approovBlockResponseStatus,
     approovBlockResponseBody,
-    approovLoggingEnabled,
-    approovAnalyticsEnabled,
     approovEchoMode,
     approovProtectedPaths,
     pluginConfig,

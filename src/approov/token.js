@@ -33,8 +33,12 @@ export const classifyJwtError = (err) => {
   }
 
   if (name === 'JsonWebTokenError') {
+    // A non-numeric exp or nbf is only reported after the signature verified,
+    // so the claim itself is malformed and no other key can change that.
     if (message.toLowerCase().includes('jwt malformed') ||
-      message.toLowerCase().includes('jwt signature is required')) {
+      message.toLowerCase().includes('jwt signature is required') ||
+      message.toLowerCase().includes('invalid exp value') ||
+      message.toLowerCase().includes('invalid nbf value')) {
       return { kind: APPROOV_TOKEN_OUTCOMES.MALFORMED, name, message }
     }
     if (message.toLowerCase().includes('invalid algorithm')) {
@@ -216,39 +220,24 @@ export const validateToken = async (ctx, token, apiPolicy) => {
     return result
   }
 
-  for (const verifier of passCandidates) {
-    try {
-      return setVerifiedResult(
-        verifier,
-        verifyWithCandidate(verifier),
-        APPROOV_TOKEN_OUTCOMES.PASS
-      )
-    } catch (err) {
-      const classification = classifyJwtError(err)
-      if (!fatalErrors.has(classification.kind)) continue
-      logInfo('token verification failed', {
-        status: classification.kind
-      })
-      result.status = classification.kind
-      return result
-    }
-  }
-
-  for (const verifier of failCandidates) {
-    try {
-      return setVerifiedResult(
-        verifier,
-        verifyWithCandidate(verifier),
-        APPROOV_TOKEN_OUTCOMES.FAIL
-      )
-    } catch (err) {
-      const classification = classifyJwtError(err)
-      if (!fatalErrors.has(classification.kind)) continue
-      logInfo('token verification failed', {
-        status: classification.kind
-      })
-      result.status = classification.kind
-      return result
+  // Pass keys are tried first. A fatal error means the signature verified
+  // but the token is unusable, so no other key is tried.
+  for (const [candidates, status] of [
+    [passCandidates, APPROOV_TOKEN_OUTCOMES.PASS],
+    [failCandidates, APPROOV_TOKEN_OUTCOMES.FAIL]
+  ]) {
+    for (const verifier of candidates) {
+      try {
+        return setVerifiedResult(verifier, verifyWithCandidate(verifier), status)
+      } catch (err) {
+        const classification = classifyJwtError(err)
+        if (!fatalErrors.has(classification.kind)) continue
+        logInfo('token verification failed', {
+          status: classification.kind
+        })
+        result.status = classification.kind
+        return result
+      }
     }
   }
 

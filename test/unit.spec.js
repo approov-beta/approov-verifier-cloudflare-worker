@@ -8,8 +8,8 @@ import { classifyJwtError, validateToken } from '../src/approov/token.js'
 import { validateMessageSignatures } from '../src/approov/message-signing.js'
 import { evaluateApproovToken } from '../src/approov/evaluate.js'
 import { establishContext, resolveApiPolicy } from '../src/config/context.js'
-import { errorMessage } from '../src/utils/errors.js'
-import { logError, logInfo, logOutcome, logWarn } from '../src/utils/logging.js'
+import { errorMessage, errorName } from '../src/utils/errors.js'
+import { logError, logInfo, logWarn } from '../src/utils/logging.js'
 import { rewriteApiRequest } from '../src/http/proxy.js'
 import { decodeBase64OrBase64Url, sha256Base64 as sha256Base64Util, timingSafeStringEqual } from '../src/utils/crypto.js'
 import { hasText, parseBoolean, trimOrNull } from '../src/utils/text.js'
@@ -2098,6 +2098,8 @@ describe('classifyJwtError', () => {
     { name: 'expiry', err: { name: 'TokenExpiredError', message: 'jwt expired' }, kind: 'EXPIRED' },
     { name: 'malformed', err: { name: 'JsonWebTokenError', message: 'jwt malformed' }, kind: 'MALFORMED' },
     { name: 'missing signature', err: { name: 'JsonWebTokenError', message: 'jwt signature is required' }, kind: 'MALFORMED' },
+    { name: 'non-numeric exp', err: { name: 'JsonWebTokenError', message: 'invalid exp value' }, kind: 'MALFORMED' },
+    { name: 'non-numeric nbf', err: { name: 'JsonWebTokenError', message: 'invalid nbf value' }, kind: 'MALFORMED' },
     { name: 'invalid algorithm', err: { name: 'JsonWebTokenError', message: 'invalid algorithm' }, kind: 'INVALID_ALG' },
     { name: 'audience', err: { name: 'JsonWebTokenError', message: 'jwt audience invalid' }, kind: 'INVALID_AUD' },
     { name: 'signature', err: { name: 'JsonWebTokenError', message: 'invalid signature' }, kind: 'INVALID_SIG' },
@@ -2417,7 +2419,6 @@ describe('logging helpers', () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     // Without a details argument (default-parameter path).
     logInfo('info-no-details')
@@ -2426,14 +2427,12 @@ describe('logging helpers', () => {
     // With a details payload.
     logInfo('info-with-details', { a: 1 })
     logError('error-with-details', { b: 2 })
-    logOutcome('an outcome line')
 
     expect(infoSpy).toHaveBeenCalledWith('approov: info-no-details')
     expect(infoSpy).toHaveBeenCalledWith('approov: info-with-details', { a: 1 })
     expect(warnSpy).toHaveBeenCalledWith('approov: warn-no-details')
     expect(errorSpy).toHaveBeenCalledWith('approov: error-no-details')
     expect(errorSpy).toHaveBeenCalledWith('approov: error-with-details', { b: 2 })
-    expect(logSpy).toHaveBeenCalledWith('[Approov] an outcome line')
   })
 })
 
@@ -2594,6 +2593,29 @@ describe('Worker re-entry detection', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('returns 508 in fixed mode when API_DOMAIN is the hostname the marked request arrived on', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const response = await runWorker({
+      headers: { 'Approov-Token': TOKEN_FIXTURES.PASS, 'Approov-Gateway-Hop': '1' },
+      envOverrides: { API_DOMAIN: 'Worker.Local' }
+    })
+
+    expect(response.status).toBe(508)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(error.mock.calls.flat().map((entry) => JSON.stringify(entry)).join(' ')).toContain('API_DOMAIN')
+  })
+
+  it('forwards an unmarked fixed-mode request whose hostname equals API_DOMAIN', async () => {
+    const response = await runWorker({
+      headers: { 'Approov-Token': TOKEN_FIXTURES.PASS },
+      envOverrides: { API_DOMAIN: 'worker.local' }
+    })
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores a client-supplied hop marker in fixed mode', async () => {
     const response = await runWorker({
       headers: { 'Approov-Token': TOKEN_FIXTURES.PASS, 'Approov-Gateway-Hop': '1' },
@@ -2618,6 +2640,14 @@ describe('Worker re-entry detection', () => {
       new Request('https://worker.local/x', { headers: { 'Approov-Gateway-Hop': 'forged, values' } })
     )
     expect(out.headers.get('Approov-Gateway-Hop')).toBe('1')
+  })
+})
+
+describe('errorName', () => {
+  it('names the error class and never the message', () => {
+    expect(errorName(new TypeError('PRIVATE'))).toBe('TypeError')
+    expect(errorName('PRIVATE')).toBe('string')
+    expect(errorName(null)).toBe('object')
   })
 })
 

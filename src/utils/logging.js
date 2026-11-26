@@ -1,16 +1,11 @@
 /**
  * Centralized logging for the worker.
  *
- * Two prefixes are used deliberately:
- * - `approov:` for internal diagnostics (debug/info/warn/error)
- * - `[Approov]` for operational request-outcome summaries
- *
  * Routing every log through these helpers keeps channels (console.log/info/
- * warn/error) and prefixes consistent across the codebase.
+ * warn/error) and the `approov:` prefix consistent across the codebase.
  */
 
 const DIAGNOSTIC_PREFIX = 'approov:'
-const OUTCOME_PREFIX = '[Approov]'
 
 const emit = (channel, prefix, message, details) => {
   try {
@@ -64,13 +59,3 @@ export const logWarn = (message, details = undefined) => emit(console.warn, DIAG
  * @returns {void}
  */
 export const logError = (message, details = undefined) => emit(console.error, DIAGNOSTIC_PREFIX, message, details)
-
-/**
- * Emit an operational request-outcome summary (always on, `[Approov]` prefix).
- *
- * @param {String} message Outcome message.
- * @param {*} [details] Optional verified-path metadata.
- * @returns {void}
- */
-export const logOutcome = (message, details = undefined) =>
-  emit(console.log, OUTCOME_PREFIX, message, details)

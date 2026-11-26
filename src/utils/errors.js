@@ -13,3 +13,13 @@
  * @returns {String} The error's `message` when present, else a stringified form.
  */
 export const errorMessage = (err) => (err && err.message ? String(err.message) : String(err))
+
+/**
+ * Name the class of a caught value for a log line.
+ *
+ * A message can carry request data, so evaluation errors log only this.
+ *
+ * @param {*} err A caught/thrown value.
+ * @returns {String} The error's class name, or the type of a non-Error value.
+ */
+export const errorName = (err) => (err instanceof Error ? err.name : typeof err)
