@@ -21,10 +21,10 @@ request in annotation mode, or applies explicit protection actions in block mode
 ## Table of Contents
 
 - [Quickstart](#quickstart)
-  - [1. First verified request](#1-first-verified-request)
-  - [2. Move to your API hostname](#2-move-to-your-api-hostname)
-  - [3. Add protection](#3-add-protection)
-  - [4. Enforce](#4-enforce)
+  - [Stage 1: First verified request](#stage-1-first-verified-request)
+  - [Stage 2: Move to your API hostname](#stage-2-move-to-your-api-hostname)
+  - [Stage 3: Add protection](#stage-3-add-protection)
+  - [Stage 4: Enforce](#stage-4-enforce)
   - [Test locally](#test-locally)
   - [Tag a deployment](#tag-a-deployment)
 - [How It Works](#how-it-works)
@@ -59,12 +59,13 @@ request in annotation mode, or applies explicit protection actions in block mode
 Get one verified request through the Worker. This takes about 15 minutes.
 
 The quickstart uses the simplest setup: a `workers.dev` hostname, token check only, annotate
-mode. Every other setup starts from here and changes one thing at a time:
+mode. Every other setup starts from here and changes one thing at a time. The guide has
+four stages, and steps are numbered by stage, so step 2.1 is the first step of stage 2:
 
-1. [First verified request](#1-first-verified-request): the same for everyone.
-2. [Move to your API hostname](#2-move-to-your-api-hostname): pick one of three setups.
-3. [Add protection](#3-add-protection): one layer at a time.
-4. [Enforce](#4-enforce): at the backend or at the edge.
+- [Stage 1: First verified request](#stage-1-first-verified-request). The same for everyone, 8 steps.
+- [Stage 2: Move to your API hostname](#stage-2-move-to-your-api-hostname). Pick one of three setups, 3 steps.
+- [Stage 3: Add protection](#stage-3-add-protection). One layer at a time, 2 steps per layer.
+- [Stage 4: Enforce](#stage-4-enforce). At the backend or at the edge, 2 steps.
 
 Do not skip stage 1. It proves your Approov account and keys work before Cloudflare routing
 is involved.
@@ -80,9 +81,9 @@ You need:
 The commands assume a POSIX shell. On Windows, follow the
 [Windows quickstart (PowerShell)](docs/windows-quickstart.md).
 
-### 1. First verified request
+### Stage 1: First verified request
 
-#### Step 1. Save your hostname in a variable
+#### Step 1.1: Save your hostname in a variable
 
 The Worker picks its Approov settings from the hostname each request arrives on. On
 `workers.dev` that hostname is `approov-gateway.<your-subdomain>.workers.dev`:
@@ -101,7 +102,7 @@ export API_HOST="approov-gateway.<your-subdomain>.workers.dev"
 From now on, wherever a command contains `"$API_HOST"`, your shell puts the hostname there.
 You can copy those commands as they are.
 
-Three things to know:
+Good to know:
 
 - **It is only a shortcut for this guide.** The Worker, Wrangler and Approov never read it.
   It is not the same as `API_DOMAIN` in `wrangler.toml`, which is where the Worker sends
@@ -117,7 +118,7 @@ Three things to know:
   This must print your hostname. If it prints an empty line, the `approov` commands fail with
   misleading errors such as `type is only valid with genExample`, or print nothing.
 
-#### Step 2. Install and log in
+#### Step 1.2: Install and log in
 
 ```shell
 npm install
@@ -126,16 +127,16 @@ npx wrangler login
 
 A browser window opens. Allow Wrangler to use your Cloudflare account.
 
-#### Step 3. Create a keyset key
+#### Step 1.3: Create a keyset key
 
 ```shell
 approov keyset -add ES256 -kid example-es256
 ```
 
 Skip this if `approov keyset -list` already shows a key you want to use. Use its key ID in
-step 4. See [Managing Key Sets](https://docs.approov.io/operations/managing-key-sets/).
+step 1.4. See [Managing Key Sets](https://docs.approov.io/operations/managing-key-sets/).
 
-#### Step 4. Register the hostname with that key
+#### Step 1.4: Register the hostname with that key
 
 ```shell
 approov api -add "$API_HOST" -keySetKID example-es256
@@ -144,7 +145,7 @@ approov api -add "$API_HOST" -keySetKID example-es256
 **Do not leave out `-keySetKID`.** A hostname without a keyset key uses your account's default
 secret. The Worker refuses that and returns `500` for every request.
 
-#### Step 5. Export the config and check it
+#### Step 1.5: Export the config and check it
 
 ```shell
 approov secret -getBackendConfig approov-config.json
@@ -152,7 +153,7 @@ jq '.apis | map_values(.kid // "NO KEYSET KEY")' approov-config.json
 ```
 
 This lists every hostname in the export with its key ID. Yours must be there with the key
-from step 3:
+from step 1.3:
 
 ```json
 {
@@ -162,8 +163,8 @@ from step 3:
 
 | You see | Fix |
 |---|---|
-| Your hostname is not listed | It is not registered. Check `echo "$API_HOST"`, then repeat step 4. |
-| `"NO KEYSET KEY"` beside your hostname | It has no keyset key. Repeat step 4 with `-keySetKID`. |
+| Your hostname is not listed | It is not registered. Check `echo "$API_HOST"`, then repeat step 1.4. |
+| `"NO KEYSET KEY"` beside your hostname | It has no keyset key. Repeat step 1.4 with `-keySetKID`. |
 
 Repeat this step after every keyset or API change. The Worker only knows what you upload.
 The file holds key material. The repository ignores it so it cannot be committed by accident.
@@ -213,7 +214,7 @@ The key ID of each hostname must be present in both `passJWKS` and `failJWKS`.
 
 </details>
 
-#### Step 6. Upload the config and deploy
+#### Step 1.6: Upload the config and deploy
 
 ```shell
 npx wrangler secret put APPROOV_BACKEND_CONFIG < approov-config.json
@@ -230,7 +231,7 @@ it. Keep the file beside `wrangler.toml` and export it again before each deploy.
 `wrangler.toml` needs no changes yet. It forwards to `postman-echo.com`, which sends back the
 headers it received, so you can see what the Worker added.
 
-#### Step 7. Test with example tokens
+#### Step 1.7: Test with example tokens
 
 ```shell
 approov token -genExample "$API_HOST"
@@ -274,7 +275,7 @@ The result shows up here only because Postman Echo sends request headers back. T
 `Approov-Result` to the request it forwards, not to the response. `/get` is a Postman Echo
 path. The root path `/` is not.
 
-#### Step 8. Test from your app
+#### Step 1.8: Test from your app
 
 Point a test build of your app at `https://$API_HOST` and watch the results:
 
@@ -291,7 +292,7 @@ Run `npx wrangler tail --format pretty` in a second terminal and repeat the requ
 response body never says why. The log does. Then find the symptom in
 [Troubleshooting](#troubleshooting).
 
-### 2. Move to your API hostname
+### Stage 2: Move to your API hostname
 
 `workers.dev` is for testing only. For real traffic, pick the row that matches your API:
 
@@ -301,14 +302,15 @@ response body never says why. The log does. Then find the symptom in
 | Origin outside Cloudflare, or you want a new public hostname | Custom Domain | The new hostname | The origin's hostname |
 | Several Cloudflare hostnames, each with its own origin | Worker Route with pass-through | Each hostname | Remove it |
 
-Then do three things:
+#### Step 2.1: Register the new hostname
 
-1. Run the `export` line from step 1 again with the new hostname, then repeat steps 4 to 6. For several hostnames, repeat
-   step 4 for each one.
-2. Add the matching block below to `wrangler.toml` and deploy.
-3. Repeat step 7 against the new hostname with a real path on your API instead of `/get`.
-   Your API does not send the result back, so read it in your backend logs, or set
-   `APPROOV_LOGGING_ENABLED = "true"` and watch `npx wrangler tail`.
+Run the `export` line from step 1.1 again with the new hostname. Then repeat steps 1.4 and 1.5
+to register it and check the export. For several hostnames, repeat step 1.4 for each one.
+
+#### Step 2.2: Route traffic to the Worker
+
+Add the block for your setup to `wrangler.toml`. Then repeat step 1.6 to upload the config
+and deploy.
 
 **Worker Route**
 
@@ -364,10 +366,20 @@ API_PASSTHROUGH = "true"
 Details and diagrams: [deployment topologies](docs/deployment-topologies.md) and
 [existing API domain](docs/existing-domain.md).
 
-### 3. Add protection
+#### Step 2.3: Test on the new hostname
 
-Add one layer, deploy, test, then add the next. In annotate mode nothing is rejected, so each
-layer is safe to try on live traffic.
+Repeat step 1.7 with a real path on your API instead of `/get`. Your API does not send the
+result back, so read it in your backend logs, or set `APPROOV_LOGGING_ENABLED = "true"` and
+watch `npx wrangler tail`.
+
+### Stage 3: Add protection
+
+In annotate mode nothing is rejected, so each layer is safe to try on live traffic. Do both
+steps for one layer, then start again for the next.
+
+#### Step 3.1: Turn on one layer
+
+Pick a row. Run the Approov part first, then change the Worker part.
 
 | Layer | In Approov | In the Worker | Passing result |
 |---|---|---|---|
@@ -377,11 +389,22 @@ layer is safe to try on live traffic.
 | [Installation message signing](#message-signing-checks) | `approov policy -setInstallPubKey on`, and the app signs requests | Nothing. The Worker checks it when the token asks for it. | `messageSigningResult: VALID` |
 | [Account message signing](#message-signing-checks) | `approov secret -messageSigningKey get-base64url` | `npx wrangler secret put APPROOV_ACCOUNT_MESSAGE_SIGNING_SECRET`, and add the name to `[secrets].required` | `messageSigningResult: VALID` |
 
-Each linked guide has the full rules and test commands. Test message signing from the app.
+#### Step 3.2: Deploy and test
 
-### 4. Enforce
+```shell
+npm run deploy
+```
 
-Until now the Worker only reports. Pick where failing requests are rejected:
+Send a request and look for the passing result from the table. Each linked guide has the
+full rules and test commands. Test message signing from the app.
+
+### Stage 4: Enforce
+
+Until now the Worker only reports.
+
+#### Step 4.1: Choose where to reject
+
+Pick where failing requests are rejected:
 
 | Option | Setting | Who rejects |
 |---|---|---|
@@ -390,11 +413,12 @@ Until now the Worker only reports. Pick where failing requests are rejected:
 
 See [Operation Modes](#operation-modes) for the settings.
 
-> [!WARNING]
-> Before going live, close every path to your origin that skips the Worker, and bypass caches
-> for protected paths. In annotate mode the backend can trust `Approov-Result` only if the
-> Worker is the only way in. Follow
-> [Backend Enforcement and Trusted Ingress](docs/backend-enforcement.md).
+#### Step 4.2: Close every path around the Worker
+
+Before going live, close every path to your origin that skips the Worker, and bypass caches
+for protected paths. In annotate mode the backend can trust `Approov-Result` only if the
+Worker is the only way in. Follow
+[Backend Enforcement and Trusted Ingress](docs/backend-enforcement.md).
 
 ### Test locally
 
@@ -1175,12 +1199,12 @@ npx wrangler tail --format pretty
 
 | Symptom | Cause and fix |
 |---|---|
-| `500`, and the log reason says `uses the default account secret` | The hostname is registered without a keyset key. Do [steps 3 to 6](#step-3-create-a-keyset-key) of the quickstart. |
-| `500`, and the log reason says `is not present in APPROOV_BACKEND_CONFIG.apis` | The hostname is not in the uploaded configuration. Check the hostname, then do [steps 4 to 6](#step-4-register-the-hostname-with-that-key). Locally, call the registered hostname with `curl --resolve` rather than `localhost`. |
-| `500`, and the log reason says `has Approov tokens disabled` | The export has `isPassKeyPresent: false` for this hostname, so Approov issues no tokens for it. Register it with a keyset key: [steps 4 to 6](#step-4-register-the-hostname-with-that-key). |
-| `npm start` or `npm run deploy` stops with `Invalid Approov configuration` | Preflight lists each invalid or unknown variable by name. Fix the listed entries in `wrangler.toml` or `.dev.vars`. If it names a hostname instead, that hostname is not registered or has no keyset key in `approov-config.json`: do [steps 4 to 6](#step-4-register-the-hostname-with-that-key). |
+| `500`, and the log reason says `uses the default account secret` | The hostname is registered without a keyset key. Do [steps 1.3 to 1.6](#step-13-create-a-keyset-key) of the quickstart. |
+| `500`, and the log reason says `is not present in APPROOV_BACKEND_CONFIG.apis` | The hostname is not in the uploaded configuration. Check the hostname, then do [steps 1.4 to 1.6](#step-14-register-the-hostname-with-that-key). Locally, call the registered hostname with `curl --resolve` rather than `localhost`. |
+| `500`, and the log reason says `has Approov tokens disabled` | The export has `isPassKeyPresent: false` for this hostname, so Approov issues no tokens for it. Register it with a keyset key: [steps 1.4 to 1.6](#step-14-register-the-hostname-with-that-key). |
+| `npm start` or `npm run deploy` stops with `Invalid Approov configuration` | Preflight lists each invalid or unknown variable by name. Fix the listed entries in `wrangler.toml` or `.dev.vars`. If it names a hostname instead, that hostname is not registered or has no keyset key in `approov-config.json`: do [steps 1.4 to 1.6](#step-14-register-the-hostname-with-that-key). |
 | Cloudflare rejects an upload with validation error `10021` | A deployed binding, usually the `APPROOV_BACKEND_CONFIG` secret, is missing or invalid. Upload the secret again from a fresh export. |
-| Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Do [steps 5 and 6](#step-5-export-the-config-and-check-it) again after any keyset or API change, then generate new example tokens. |
+| Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Do [steps 1.5 and 1.6](#step-15-export-the-config-and-check-it) again after any keyset or API change, then generate new example tokens. |
 | `502 Bad Gateway` with the body `Bad Gateway` | The Worker could not reach the upstream and logged `approov: upstream request failed`. Check `API_DOMAIN`, `API_PORT` and that the origin accepts HTTPS. |
 | `508 Loop Detected` | `API_PASSTHROUGH` is enabled outside the Worker Route topology, or `global_fetch_strictly_public` is on. See [deployment topologies](docs/deployment-topologies.md). |
 
