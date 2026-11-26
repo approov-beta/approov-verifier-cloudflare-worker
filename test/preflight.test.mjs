@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { Miniflare } from 'miniflare'
 import { configArguments, validateConfig } from '../scripts/preflight.mjs'
-import { makeEnv } from './fixtures.js'
+import { makeEnv, makeBackendConfig } from './fixtures.js'
 import './docs-examples.test.mjs'
 import './tooling-cases.mjs'
 
@@ -90,6 +90,41 @@ test('local backend exports and supplied secret files are validated without expo
   const dotEnv = join(folder, 'secrets.env')
   writeFileSync(dotEnv, `APPROOV_BACKEND_CONFIG='${makeEnv().APPROOV_BACKEND_CONFIG}'\n`)
   assert.equal(validateConfig(['--config', configPath, '--secrets-file', dotEnv]).isValid, true)
+})
+
+test('a served hostname the Worker cannot verify stops validation with the fix', () => {
+  const keyed = { kid: '__default__', isPassKeyPresent: true, isFailKeyPresent: true }
+  const unkeyed = { isPassKeyPresent: true, isFailKeyPresent: false }
+  const check = (name, settings, apis, ...args) => {
+    const file = join(folder, `${name}.json`)
+    const secrets = join(folder, `${name}-secrets.json`)
+    writeFileSync(file, JSON.stringify({ ...config, ...settings }))
+    writeFileSync(secrets, JSON.stringify({ APPROOV_BACKEND_CONFIG: makeBackendConfig({ apis }) }))
+    return validateConfig(['--config', file, '--secrets-file', secrets, ...args])
+  }
+  const routes = { routes: [{ pattern: 'api.example.com/*', zone_name: 'example.com' }, 'https://Other.example.com/v1/*', '*.wild.example.com/*'] }
+
+  assert.equal(check('routes-ok', routes, { 'api.example.com': keyed, 'other.example.com': keyed, 'unrelated.example.com': unkeyed }).isValid, true)
+  assert.throws(() => check('routes-unkeyed', routes, { 'api.example.com': keyed, 'other.example.com': unkeyed }), error => {
+    assert.match(error.message, /"other\.example\.com" has no keyset key/)
+    assert.match(error.message, /approov api -add <hostname> -keySetKID <kid>/)
+    assert.doesNotMatch(error.message, /api\.example\.com/)
+    return true
+  })
+  assert.equal(check('routes-default', routes, { 'api.example.com': keyed, 'other.example.com': unkeyed },
+    '--var', 'APPROOV_ACCEPT_DEFAULT_ACCOUNT_SECRET:true').isValid, true)
+  assert.throws(() => check('routes-missing', { route: 'api.example.com/*' }, { 'other.example.com': keyed }),
+    /"api\.example\.com" is not registered with Approov/)
+  assert.throws(() => check('routes-disabled', { route: 'api.example.com/*' }, { 'api.example.com': { kid: '__default__', isPassKeyPresent: false, isFailKeyPresent: false } }),
+    /"api\.example\.com" has Approov tokens disabled/)
+
+  // workers.dev: only this Worker's own registered name is checked.
+  const own = `${config.name}.example.workers.dev`
+  assert.throws(() => check('dev-unkeyed', {}, { [own]: unkeyed }), /example\.workers\.dev" has no keyset key/)
+  assert.equal(check('dev-other', {}, { [`other-${own}`]: unkeyed, 'worker.local': keyed }).isValid, true)
+  assert.equal(check('dev-off', { workers_dev: false }, { [own]: unkeyed }).isValid, true)
+  assert.throws(() => check('dev-on', { ...routes, workers_dev: true }, { 'api.example.com': keyed, 'other.example.com': keyed, [own]: unkeyed }), /has no keyset key/)
+  assert.equal(check('dev-routed', routes, { 'api.example.com': keyed, 'other.example.com': keyed, [own]: unkeyed }).isValid, true)
 })
 
 test('explicit env files resolve from the command directory, including --cwd and named environments', () => {

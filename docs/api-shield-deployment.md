@@ -85,7 +85,7 @@ npm run deploy -- --tag "$(git describe --tags --always --dirty)"
 ```
 
 The deployment tag identifies the source revision in Cloudflare's **Worker → Deployments** page.
-For PowerShell and ZIP downloads, use the [tagged deployment examples](../README.md#10-publish).
+For PowerShell and ZIP downloads, use the [tagged deployment examples](../README.md#tag-a-deployment).
 
 Keep `APPROOV_BACKEND_CONFIG` in `[secrets].required`. The deployment command always validates policy.
 If the export exists beside the selected Wrangler file, preflight validates it too:
