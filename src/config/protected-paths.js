@@ -2,10 +2,20 @@ import { trimOrNull } from '../utils/text.js'
 
 const utf8 = new TextDecoder()
 
+// Three passes cover double and triple encoding. Decoding is idempotent once
+// no escape is left.
+const DECODE_PASSES = 3
+
+// Stands in for a decoded "/" or "\" that stays inside its segment.
+const KEPT_SEPARATOR = '￿'
+
 // Decode every %XX escape. Unlike decodeURIComponent, one invalid sequence
-// (such as "%ff") never leaves the rest of the path undecoded.
-const percentDecode = (path) => path.replace(/(?:%[0-9a-f]{2})+/gi, (run) =>
-  utf8.decode(Uint8Array.from(run.slice(1).split('%'), (hex) => Number.parseInt(hex, 16))))
+// (such as "%ff") never leaves the rest of the path undecoded. With
+// keepSeparators a decoded "/" or "\" does not split its segment.
+const percentDecode = (path, keepSeparators) => path.replace(/(?:%[0-9a-f]{2})+/gi, (run) => {
+  const text = utf8.decode(Uint8Array.from(run.slice(1).split('%'), (hex) => Number.parseInt(hex, 16)))
+  return keepSeparators ? text.replace(/[/\\]/g, KEPT_SEPARATOR) : text
+})
 
 /**
  * Normalize a path for matching only; the forwarded URL is never changed.
@@ -16,14 +26,19 @@ const percentDecode = (path) => path.replace(/(?:%[0-9a-f]{2})+/gi, (run) =>
  * protected path reach the origin unchecked. A false positive only adds
  * checks; a false negative skips them.
  *
+ * Origins also differ on an encoded "/" or "\". Some split the segment there.
+ * Others route on the raw path and keep it as one segment, so "/shop/d%2fe"
+ * still reaches a "/shop/*" route. `splitPasses` picks the reading: a
+ * separator decoded in one of the first `splitPasses` passes splits its
+ * segment, a later one stays inside it.
+ *
  * @param {String} pathname URL path.
+ * @param {Number} [splitPasses] Decode passes in which a separator splits.
  * @returns {String} Decoded, parameter-free, slash-collapsed, lowercase path.
  */
-export const normalizePathForMatching = (pathname) => {
+export const normalizePathForMatching = (pathname, splitPasses = DECODE_PASSES) => {
   let path = String(pathname)
-  // Three passes cover double and triple encoding. Decoding is idempotent
-  // once no escape is left.
-  for (let pass = 0; pass < 3; pass++) path = percentDecode(path)
+  for (let pass = 0; pass < DECODE_PASSES; pass++) path = percentDecode(path, pass >= splitPasses)
   return path
     .replace(/\\/g, '/')
     .replace(/;[^/]*/g, '')
@@ -102,9 +117,13 @@ export const parseProtectedPaths = (env, errors) => {
  */
 export const isProtectedPath = (ctx, pathname) => {
   if (!ctx.approovProtectedPaths) return true
-  // Origins differ on whether they resolve decoded dot segments, so a match
-  // on either spelling is protected.
-  const path = normalizePathForMatching(pathname)
-  const resolved = resolveDotSegments(path)
-  return ctx.approovProtectedPaths.some((matcher) => matcher.test(path) || matcher.test(resolved))
+  // Origins differ on whether an encoded separator splits its segment and on
+  // whether they resolve decoded dot segments, so a match on any of those
+  // spellings is protected.
+  const spellings = new Set()
+  for (let splitPasses = 0; splitPasses <= DECODE_PASSES; splitPasses++) {
+    const path = normalizePathForMatching(pathname, splitPasses)
+    spellings.add(path).add(resolveDotSegments(path))
+  }
+  return ctx.approovProtectedPaths.some((matcher) => [...spellings].some((path) => matcher.test(path)))
 }

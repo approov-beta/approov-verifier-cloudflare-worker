@@ -131,6 +131,29 @@ describe('protected path patterns', () => {
     }
   })
 
+  it('checks a "*" segment that carries an encoded slash or backslash', () => {
+    const ctx = contextFor('/shop/*/checkout, /customer/v*/carts')
+    for (const path of [
+      '/shop/d%2fe/checkout',
+      '/shop/d%5Ce/checkout',
+      '/shop/d%252fe/checkout',
+      '/shop/d%255ce/checkout',
+      '/shop/d%25252fe/checkout',
+      '/shop/%2e%2e%2fx/checkout',
+      '/shop%2fd%252fe/checkout',
+      '/sh%256fp/d%252fe/checkout',
+      '/public/..;/shop/d%2fe/checkout',
+      '/customer/v1%2fx/carts'
+    ]) {
+      expect(isProtectedPath(ctx, path), path).toBe(true)
+    }
+    // "*" still stands for one segment, and a literal segment never matches
+    // across an encoded slash.
+    for (const path of ['/shop/d/e/checkout', '/shop%2fcheckout', '/store/d%2fe/checkout', '/customer/x1%2fv1/carts']) {
+      expect(isProtectedPath(ctx, path), path).toBe(false)
+    }
+  })
+
   it.each(['/api/', '/', '/shop/*/'])('rejects the trailing-slash entry %s, which would protect nothing below it', (entry) => {
     const ctx = contextFor(`/shop/*/*/checkout, ${entry}`)
     expect(ctx.isValid).toBe(false)
