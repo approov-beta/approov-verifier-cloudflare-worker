@@ -124,7 +124,7 @@ flowchart LR
 ```
 
 `API_DOMAIN` **must** name a different hostname from the incoming one. Pointing it back at the
-Worker's own hostname makes the Worker fetch itself.
+Worker's own hostname makes the Worker fetch itself, which it answers with `508 Loop Detected`.
 
 ```toml
 workers_dev = false
@@ -186,7 +186,7 @@ Two constraints are load-bearing:
 
 1. **Leave `global_fetch_strictly_public` off.** With that compatibility flag enabled, the
    same-zone subrequest is sent back out through Cloudflare's public routing path and re-enters
-   the Worker Route.
+   the Worker Route, which the Worker answers with `508 Loop Detected`.
 2. **Configure the route to fail closed**, so an exhausted Worker request allowance returns an
    error instead of bypassing verification and delivering unverified traffic to the origin.
 

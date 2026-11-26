@@ -79,14 +79,16 @@ const handleRequestWithAnalytics = async (request, env, analytics) => {
   // fixed mode one whose hostname equals API_DOMAIN. Fail closed with a
   // distinct status: continuing would recurse until Cloudflare's subrequest
   // limit and report an unrelated error. A marker on any other fixed-mode
-  // request is client-supplied and is ignored.
+  // request is client-supplied and is ignored. A client can also send the
+  // marker to a hostname that does match, which only fails its own request,
+  // so the log line names that cause next to the configuration ones.
   const url = new URL(request.url)
   if (request.headers.has(APPROOV_GATEWAY_HOP_HEADER_NAME) &&
     (ctx.apiPassthrough || url.hostname === ctx.apiHost.toLowerCase())) {
     logError('worker re-entered its own route', {
       message: ctx.apiPassthrough
         ? 'API_PASSTHROUGH requires the Worker Route topology with the global_fetch_strictly_public compatibility flag disabled'
-        : 'API_DOMAIN is the hostname this Worker serves; point it at the origin or use the Worker Route topology'
+        : `the request arrived on API_DOMAIN with the ${APPROOV_GATEWAY_HOP_HEADER_NAME} header: on a Custom Domain or workers.dev hostname, point API_DOMAIN at the origin; on a Worker Route, disable the global_fetch_strictly_public compatibility flag; otherwise the client sent the header itself`
     })
     return respond(new Response('Loop Detected', { status: 508 }), 'error')
   }

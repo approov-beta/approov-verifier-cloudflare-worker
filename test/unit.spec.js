@@ -2603,7 +2603,10 @@ describe('Worker re-entry detection', () => {
 
     expect(response.status).toBe(508)
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(error.mock.calls.flat().map((entry) => JSON.stringify(entry)).join(' ')).toContain('API_DOMAIN')
+    const logged = error.mock.calls.flat().map((entry) => JSON.stringify(entry)).join(' ')
+    for (const cause of ['point API_DOMAIN at the origin', 'global_fetch_strictly_public', 'client sent the header']) {
+      expect(logged).toContain(cause)
+    }
   })
 
   it('forwards an unmarked fixed-mode request whose hostname equals API_DOMAIN', async () => {
