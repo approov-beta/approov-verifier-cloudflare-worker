@@ -539,8 +539,8 @@ flowchart TD
 ```
 
 Two diagnostic paths are left out of the diagram. With `APPROOV_ECHO_MODE` the Worker replies
-with the rewritten request instead of forwarding it. With `API_PASSTHROUGH` a forwarded request
-that comes back to the Worker is answered with `508 Loop Detected`.
+with the rewritten request instead of forwarding it. A forwarded request that comes back to the
+Worker is answered with `508 Loop Detected`.
 
 The message-signing requirement comes from `APPROOV_MESSAGE_SIGNING_REQUIRED`, or from the
 token's claims when that setting is unset:
@@ -1206,7 +1206,7 @@ npx wrangler tail --format pretty
 | Cloudflare rejects an upload with validation error `10021` | A deployed binding, usually the `APPROOV_BACKEND_CONFIG` secret, is missing or invalid. Upload the secret again from a fresh export. |
 | Every token reports `INVALID_SIG` | The uploaded configuration does not hold the key that signed the token. Do [steps 1.5 and 1.6](#step-15-export-the-config-and-check-it) again after any keyset or API change, then generate new example tokens. |
 | `502 Bad Gateway` with the body `Bad Gateway` | The Worker could not reach the upstream and logged `approov: upstream request failed`. Check `API_DOMAIN`, `API_PORT` and that the origin accepts HTTPS. |
-| `508 Loop Detected` | `API_PASSTHROUGH` is enabled outside the Worker Route topology, or `global_fetch_strictly_public` is on. See [deployment topologies](docs/deployment-topologies.md). |
+| `508 Loop Detected` | The forwarded request came back to the Worker. `API_PASSTHROUGH` is enabled outside the Worker Route topology, `API_DOMAIN` names the Worker's own Custom Domain or `workers.dev` hostname, or `global_fetch_strictly_public` is on. A client that sends the `Approov-Gateway-Hop` header itself gets it too. See [deployment topologies](docs/deployment-topologies.md). |
 
 Read the Worker's log lines with `npx wrangler tail --format pretty`.
 
