@@ -27,6 +27,50 @@ const bundle = await build({
 })
 const { establishContext } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 
+// A route pattern is "host/path". A wildcard host names no single API domain.
+const routeHostname = (route) => {
+  const pattern = typeof route === 'string' ? route : route?.pattern
+  const host = String(pattern || '').replace(/^[a-z]+:\/\//i, '').split('/')[0].toLowerCase()
+  return host && !host.includes('*') ? host : null
+}
+
+// The hostnames this deployment serves, as far as the Wrangler file tells.
+// The workers.dev subdomain is not in that file, so registered names of the
+// form <name>.<subdomain>.workers.dev are matched instead.
+const servedHostnames = (config, registered) => {
+  const routes = [config.route, ...(config.routes || [])].filter(Boolean)
+  const hosts = new Set(routes.map(routeHostname).filter(Boolean))
+  if (config.workers_dev ?? routes.length === 0) {
+    for (const host of registered) {
+      if (host.startsWith(`${config.name}.`) && host.endsWith('.workers.dev') && host.split('.').length === 4) hosts.add(host)
+    }
+  }
+  return [...hosts]
+}
+
+// The Worker fails closed with a 500 for a hostname it cannot verify. Report
+// that before deployment, with the command that fixes it.
+const assertServedHostnames = (config, context) => {
+  const policies = context.approovApiPolicies
+  if (policies.size === 0) return // no backend export to check against
+  const problems = []
+  for (const host of servedHostnames(config, policies.keys())) {
+    const policy = policies.get(host)
+    if (!policy) {
+      problems.push(`"${host}" is not registered with Approov: it is missing from APPROOV_BACKEND_CONFIG.apis`)
+    } else if (!policy.isPassKeyPresent) {
+      problems.push(`"${host}" has Approov tokens disabled`)
+    } else if (!policy.kid && !context.approovAcceptDefaultAccountSecret) {
+      problems.push(`"${host}" has no keyset key, so it uses the default account secret, which the Worker refuses`)
+    }
+  }
+  if (problems.length) {
+    throw new Error(`Invalid Approov configuration:\n${problems.join('\n')}\n` +
+      'The Worker would return 500 for every request to these hostnames.\n' +
+      'Fix: approov api -add <hostname> -keySetKID <kid>, then export the backend configuration again and upload it.')
+  }
+}
+
 // Preserve Wrangler's arguments for execution; extract only binding inputs.
 export const configArguments = (argv) => {
   const args = { vars: {}, envFiles: [] }
@@ -90,6 +134,7 @@ export const validateConfig = (argv, { development = false } = {}) => {
     }
     const context = establishContext(bindings, { preflight: !development })
     assertValidConfig(context)
+    assertServedHostnames(config, context)
     return context
   } finally {
     process.chdir(oldCwd)
