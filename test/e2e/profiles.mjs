@@ -85,6 +85,46 @@ export const profiles = [
     ]
   },
 
+  // ── Protected-path axis ────────────────────────────────────────────────────
+  // In annotate mode a checked path echoes an Approov-Result and an unchecked
+  // path does not, so the edge's own handling of each spelling is observable.
+  {
+    name: 'protected-paths',
+    vars: { APPROOV_PROTECTED_PATHS: '/api,/shop/*/checkout' },
+    scenarios: [
+      ...[
+        '/api/users',
+        '/API/users',
+        '/api.json',
+        '/%61pi/users/%ff',
+        '/%2561pi/users',
+        '/public%2f..%2fapi/users',
+        '/public%5c..%5capi/users',
+        '/public/..;/api/users',
+        '/shop/de/checkout',
+        '/shop/d%2fe/checkout',
+        '/shop/d%5ce/checkout',
+        '/shop/d%252fe/checkout',
+        '/shop%2fd%252fe/checkout'
+      ].map((path) => ({
+        name: `checks ${path}`,
+        request: { path, headers: tokenHeader(arcToken) },
+        expect: ({ status, result }) => {
+          assert.equal(status, 200)
+          assert.equal(result?.tokenResult, 'PASS', 'a protected path must carry the Worker result')
+        }
+      })),
+      ...['/open', '/apiary', '/shop/d/e/checkout', '/shop%2fcheckout'].map((path) => ({
+        name: `forwards ${path} unchecked, without a forged or Worker result`,
+        request: { path, headers: { ...tokenHeader(failTok), 'Approov-Result': 'forged-by-client' } },
+        expect: ({ status, body }) => {
+          assert.equal(status, 200)
+          assert.equal(findHeader(body.headers, 'approov-result'), undefined)
+        }
+      }))
+    ]
+  },
+
   // ── Plugin-presence axis (exercises the drop-in discovery/wiring flow) ──────
   {
     name: 'plugins-none',
@@ -158,9 +198,14 @@ export const profiles = [
         }
       },
       {
-        name: 'empty token header is normalized away at ingress → MISSING_HEADER',
+        // Cloudflare delivers the empty header to the Worker. An ingress that
+        // drops it instead gives MISSING_HEADER. Neither is a passing token.
+        name: 'empty token header → EMPTY_HEADER, or MISSING_HEADER when ingress drops it',
         request: { path: PATH, headers: { 'Approov-Token': '' } },
-        expect: ({ result }) => assert.equal(result.tokenResult, 'MISSING_HEADER')
+        expect: ({ status, result }) => {
+          assert.equal(status, 200)
+          assert.ok(['EMPTY_HEADER', 'MISSING_HEADER'].includes(result.tokenResult), result.tokenResult)
+        }
       },
       {
         name: 'unknown signer → INVALID_SIG',
@@ -475,12 +520,18 @@ export const profiles = [
         expect: ({ result }) => assert.equal(result.messageSigningResult, 'ACCOUNT_KEY_ID_MISMATCH')
       },
       {
+        // Every present member is verified, so the install entry fails on its
+        // own missing key claim next to the missing account entry.
         name: 'install entry cannot replace required account signature',
         request: {
           path: PATH,
           headers: { ...tokenHeader(eligibleToken), ...dummySignature('install', 'ecdsa-p256-sha256') }
         },
-        expect: ({ result }) => assert.equal(result.messageSigningResult, 'MISSING_SIGNATURE_ENTRY')
+        expect: ({ result }) => {
+          assert.equal(result.messageSigningResult, 'INVALID')
+          assert.equal(result.messageSigningVerification.signatures.account.status, 'MISSING_SIGNATURE_ENTRY')
+          assert.equal(result.messageSigningVerification.signatures.install.status, 'INVALID_INSTALL_KEY_CLAIM')
+        }
       },
       {
         name: 'missing account entry → MISSING_SIGNATURE_ENTRY',
@@ -548,12 +599,17 @@ export const profiles = [
         expect: ({ result }) => assert.equal(result.messageSigningResult, 'INVALID')
       },
       {
-        name: 'no signing claims → NOT_REQUIRED',
+        name: 'no signing claims and no signature headers → NOT_REQUIRED',
+        request: { path: PATH, headers: tokenHeader(arcToken) },
+        expect: ({ result }) => assert.equal(result.messageSigningResult, 'NOT_REQUIRED')
+      },
+      {
+        name: 'present install member without a key claim → INVALID_INSTALL_KEY_CLAIM',
         request: {
           path: PATH,
           headers: { ...tokenHeader(arcToken), ...dummySignature('install', 'ecdsa-p256-sha256') }
         },
-        expect: ({ result }) => assert.equal(result.messageSigningResult, 'NOT_REQUIRED')
+        expect: ({ result }) => assert.equal(result.messageSigningResult, 'INVALID_INSTALL_KEY_CLAIM')
       },
       {
         name: 'malformed install key claim → INVALID_INSTALL_KEY_CLAIM',
@@ -569,7 +625,11 @@ export const profiles = [
           path: PATH,
           headers: { ...tokenHeader(installToken), ...dummySignature('account', 'hmac-sha256') }
         },
-        expect: ({ result }) => assert.equal(result.messageSigningResult, 'MISSING_SIGNATURE_ENTRY')
+        expect: ({ result }) => {
+          assert.equal(result.messageSigningResult, 'INVALID')
+          assert.equal(result.messageSigningVerification.signatures.install.status, 'MISSING_SIGNATURE_ENTRY')
+          assert.equal(result.messageSigningVerification.signatures.account.status, 'INVALID_ACCOUNT_KEY_ID_CLAIM')
+        }
       }
     ]
   },
